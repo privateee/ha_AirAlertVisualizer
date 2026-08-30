@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.20
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.19
 FROM ${BUILD_FROM}
 
 # point these at your fork if you fork the repo (also set in build.yaml)

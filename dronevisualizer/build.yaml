@@ -1,6 +1,6 @@
 build_from:
-  aarch64: "ghcr.io/home-assistant/aarch64-base-python:3.12-alpine3.20"
-  amd64: "ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.20"
+  aarch64: "ghcr.io/home-assistant/aarch64-base-python:3.12-alpine3.19"
+  amd64: "ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.19"
 args:
   DRONEVIS_REPO: "https://github.com/privateee/ha_AirAlertVisualizer"
   DRONEVIS_REF: "main"
