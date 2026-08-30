@@ -55,7 +55,7 @@ def _csv(value: str | None) -> list[str] | None:
     return items or None
 
 
-def create_app(cfg: Config | None = None) -> FastAPI:
+def create_app(cfg: Config | None = None):
     cfg = cfg or load_config()
     setup_logging(cfg.log_level)
     service = Service(cfg)
@@ -251,7 +251,28 @@ def create_app(cfg: Config | None = None) -> FastAPI:
     if WEB_DIR.exists():
         app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
 
-    return app
+    # Home Assistant ingress forwards request paths with a doubled leading
+    # slash ("//api/config"), which the router won't match. Collapse repeated
+    # slashes before anything else sees the request. No-op outside ingress.
+    return _CollapseSlashes(app)
+
+
+class _CollapseSlashes:
+    _RE = re.compile(r"/{2,}")
+    _REB = re.compile(rb"/{2,}")
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and "//" in scope.get("path", ""):
+            scope = dict(scope)
+            scope["path"] = self._RE.sub("/", scope["path"])
+            raw = scope.get("raw_path")
+            if raw:
+                head, sep, tail = raw.partition(b"?")
+                scope["raw_path"] = self._REB.sub(b"/", head) + sep + tail
+        await self.app(scope, receive, send)
 
 
 def _json(text: str):
