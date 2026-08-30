@@ -264,37 +264,38 @@ body.sheet-open .stream-head { display: flex; }
   text-align: center;
 }
 
-/* ============================================================ desktop */
-@media (min-width: 900px) {
-  :root { --sheet-peek: 0px; }
-  .brand span { display: inline; }
-  #bar { gap: 14px; flex-wrap: wrap; }
-  #filtersToggle { display: none; }
-  #filters {
-    position: static; display: flex; flex-direction: row; align-items: center;
-    flex-wrap: wrap; gap: 14px; padding: 0; background: none; box-shadow: none;
-    border: none; max-height: none; overflow: visible;
-  }
-  #filters label { flex-direction: row; align-items: center; }
-  #filters #threats { flex-wrap: wrap; gap: 5px; }
-  #filters .chip { padding: 4px 8px; font-size: 11px; }
-  #bar select { padding: 5px 8px; }
-  .bar-actions { margin-left: 0; }
-  .status { position: static; margin-left: auto; font-size: 12px; }
-
-  #main { display: flex; }
-  #mapWrap { position: relative; inset: auto; flex: 1; min-width: 0; }
-  #scrubWrap { bottom: 14px; }
-
-  #stream {
-    position: static;
-    width: 384px; flex-shrink: 0; height: auto;
-    transform: none !important;
-    border-top: none; border-left: 1px solid var(--line);
-    border-radius: 0; box-shadow: none;
-  }
-  #sheetHandle { display: none; }
-  .stream-head { display: flex; }
-  .msg.locatable::after { content: none; }
-  .msg { cursor: default; }
+/* ============================================================ desktop
+   Applied via body.is-desktop (set by JS from the layout toggle: auto /
+   force-PC / force-mobile), NOT a bare media query, so the header button
+   can override it at any width. */
+body.is-desktop { --sheet-peek: 0px; }
+body.is-desktop .brand span { display: inline; }
+body.is-desktop #bar { gap: 14px; flex-wrap: wrap; }
+body.is-desktop #filtersToggle { display: none; }
+body.is-desktop #filters {
+  position: static; display: flex; flex-direction: row; align-items: center;
+  flex-wrap: wrap; gap: 14px; padding: 0; background: none; box-shadow: none;
+  border: none; max-height: none; overflow: visible;
 }
+body.is-desktop #filters label { flex-direction: row; align-items: center; }
+body.is-desktop #filters #threats { flex-wrap: wrap; gap: 5px; }
+body.is-desktop #filters .chip { padding: 4px 8px; font-size: 11px; }
+body.is-desktop #bar select { padding: 5px 8px; }
+body.is-desktop .bar-actions { margin-left: 0; }
+body.is-desktop .status { position: static; margin-left: auto; font-size: 12px; }
+
+body.is-desktop #main { display: flex; }
+body.is-desktop #mapWrap { position: relative; inset: auto; flex: 1; min-width: 0; }
+body.is-desktop #scrubWrap { bottom: 14px; }
+
+body.is-desktop #stream {
+  position: static;
+  width: 384px; flex-shrink: 0; height: auto;
+  transform: none !important;
+  border-top: none; border-left: 1px solid var(--line);
+  border-radius: 0; box-shadow: none;
+}
+body.is-desktop #sheetHandle { display: none; }
+body.is-desktop .stream-head { display: flex; }
+body.is-desktop .msg.locatable::after { content: none; }
+body.is-desktop .msg { cursor: default; }

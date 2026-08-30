@@ -24,9 +24,39 @@ const state = {
   mapTheme: "dark",
 };
 
-const isMobile = () => window.matchMedia("(max-width: 899px)").matches;
 function lsGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+
+// ---------------------------------------------------------------- layout
+const WIDE_MQ = window.matchMedia("(min-width: 900px)");
+// pref: "auto" (follow screen width) | "pc" | "mobile"
+let layoutPref = lsGet("layout") || "auto";
+
+function layoutIsDesktop() {
+  return layoutPref === "pc" || (layoutPref === "auto" && WIDE_MQ.matches);
+}
+const isMobile = () => !layoutIsDesktop();
+
+function applyLayout() {
+  const desktop = layoutIsDesktop();
+  document.body.classList.toggle("is-desktop", desktop);
+  const btn = $("#layout");
+  if (btn) {
+    const face = { auto: "🖥️/📱", pc: "🖥️", mobile: "📱" }[layoutPref];
+    btn.textContent = face;
+    btn.title = "Layout: " + layoutPref + " (tap to change)";
+  }
+  if (map) setTimeout(() => map.invalidateSize({ pan: false }), 60);
+}
+
+function cycleLayout() {
+  layoutPref = { auto: "pc", pc: "mobile", mobile: "auto" }[layoutPref];
+  lsSet("layout", layoutPref);
+  document.body.classList.remove("sheet-open", "filters-open");
+  applyLayout();
+}
+
+WIDE_MQ.addEventListener("change", () => { if (layoutPref === "auto") applyLayout(); });
 
 // ---------------------------------------------------------------- map theme
 function loadMapTheme() {
@@ -103,10 +133,12 @@ async function init() {
     const center = a.center ||
       (a.bbox ? [(a.bbox[0] + a.bbox[2]) / 2, (a.bbox[1] + a.bbox[3]) / 2] : [50.45, 30.52]);
 
+    applyLayout();
     map = L.map("map", { zoomControl: true })
       .setView(center, a.radius_km && a.radius_km < 150 ? 8 : 6);
     layer.addTo(map);
     applyMapTheme(loadMapTheme());
+    applyLayout();                    // again, now that map exists (invalidateSize)
     wire();
   }
 
@@ -201,6 +233,7 @@ function wire() {
   $("#theme").addEventListener("click", () => {
     applyMapTheme(state.mapTheme === "dark" ? "light" : "dark");
   });
+  $("#layout").addEventListener("click", cycleLayout);
   let deb;
   $("#search").addEventListener("input", (e) => {
     clearTimeout(deb);
