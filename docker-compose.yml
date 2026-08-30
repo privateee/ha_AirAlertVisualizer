@@ -1,0 +1,23 @@
+# docker compose up -d   ->   http://<host>:8750
+services:
+  dronevis:
+    build: .
+    image: dronevis:latest
+    container_name: dronevis
+    restart: unless-stopped
+    ports:
+      - "8750:8750"
+    volumes:
+      - dronevis-data:/data
+    environment:
+      DRONEVIS_CHANNELS: "war_monitor,AerisRimor,kpszsu,vanek_nikolaev"
+      DRONEVIS_POLL_INTERVAL: "60"
+      DRONEVIS_AREA_LABEL: "Kyiv + oblast"
+      DRONEVIS_AREA_CENTER: "50.4501,30.5234"
+      DRONEVIS_AREA_RADIUS_KM: "130"
+      DRONEVIS_MAP_THEME: "dark"
+      # DRONEVIS_TILE_URL_DARK: "https://{s}.basemap.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      DRONEVIS_LOG_LEVEL: "INFO"
+
+volumes:
+  dronevis-data:

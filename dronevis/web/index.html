@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#10141b" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DroneVis" />
+  <title>DroneVisualizer</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="bar">
+    <div class="brand">🛰️ <span>DroneVisualizer</span></div>
+
+    <button id="filtersToggle" class="icon-btn" aria-label="Filters" title="Filters">☰</button>
+
+    <div id="filters">
+      <label>Area
+        <select id="area"></select>
+      </label>
+      <label>Window
+        <select id="window">
+          <option value="5m">5 min</option>
+          <option value="15m">15 min</option>
+          <option value="30m">30 min</option>
+          <option value="1h">1 hour</option>
+          <option value="2h">2 hours</option>
+          <option value="3h" selected>3 hours</option>
+          <option value="6h">6 hours</option>
+          <option value="12h">12 hours</option>
+          <option value="24h">24 hours</option>
+          <option value="48h">48 hours</option>
+        </select>
+      </label>
+      <div id="threats" class="chips"></div>
+    </div>
+
+    <div class="bar-actions">
+      <label class="live"><input type="checkbox" id="live" checked /> Live</label>
+      <button id="ingestBtn" title="Fetch new posts now">Fetch</button>
+      <button id="theme" class="icon-btn" title="Toggle map theme">🌙</button>
+    </div>
+    <span id="status" class="status"></span>
+  </header>
+
+  <div id="main">
+    <div id="mapWrap">
+      <div id="map"></div>
+      <div id="scrubWrap">
+        <input type="range" id="scrub" min="0" max="100" value="100" aria-label="History" />
+        <span id="scrubLabel">now</span>
+      </div>
+    </div>
+
+    <aside id="stream">
+      <button id="sheetHandle" aria-label="Expand feed">
+        <span class="grip"></span>
+        <span id="sheetSummary">Feed</span>
+      </button>
+      <div class="stream-head">
+        <div id="channels" class="chips"></div>
+        <input type="search" id="search" placeholder="filter text…" />
+      </div>
+      <ul id="msgs"></ul>
+    </aside>
+  </div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

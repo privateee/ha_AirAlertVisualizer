@@ -1,0 +1,122 @@
+# DroneVisualizer configuration.
+# Copy to config.yaml and edit. config.yaml is git-ignored.
+
+# ---------------------------------------------------------------------------
+# Telegram sources. For now we read the public web preview at t.me/s/<name>
+# (no login, no API key). Each channel with "preview enabled" works.
+# A Telethon (MTProto) backend can be added later without touching the rest.
+# ---------------------------------------------------------------------------
+sources:
+  backend: tme_web            # tme_web | telethon (telethon not implemented yet)
+  channels:
+    - war_monitor
+    - AerisRimor
+    - kpszsu
+    - vanek_nikolaev
+  # How many pages of history to walk back on the very first run per channel.
+  # One page is ~16-20 posts. Subsequent runs only fetch new posts.
+  backfill_pages: 3
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DroneVisualizer/0.1"
+  request_timeout: 20
+  # Polite delay between HTTP requests, seconds.
+  request_delay: 1.5
+
+# ---------------------------------------------------------------------------
+# Polling
+# ---------------------------------------------------------------------------
+poll:
+  interval_seconds: 60        # how often to fetch new posts from every channel
+  reparse_on_start: false     # re-run the parser over all stored raw messages
+
+# ---------------------------------------------------------------------------
+# Areas of interest. The UI filters to the "default" area; everything is still
+# stored and can be shown by switching areas or picking "all".
+# A circle (center + radius_km) or a bbox [south, west, north, east].
+# ---------------------------------------------------------------------------
+areas:
+  default: kyiv
+  defined:
+    kyiv:
+      label: "Kyiv + oblast"
+      center: [50.4501, 30.5234]
+      radius_km: 130
+    dnipro:
+      label: "Dnipro"
+      center: [48.4647, 35.0462]
+      radius_km: 90
+    ukraine:
+      label: "All Ukraine"
+      bbox: [44.0, 22.0, 52.5, 40.3]
+
+# ---------------------------------------------------------------------------
+# Deduplication: when do two parsed observations describe the same object?
+# ---------------------------------------------------------------------------
+dedupe:
+  time_window_minutes: 25     # max gap from a cluster's last message
+  max_span_minutes: 90        # a cluster never spans longer than this
+  distance_km: 20             # two sightings within this many km = same object
+  text_similarity: 0.72       # rapidfuzz ratio fallback when geo is missing
+  incompatible_split: true    # never merge different threat families
+  # Trajectory chaining: "5 БпЛА повз Славутич" then "5 на Димер" minutes later
+  # is the same group. Merge across a bigger distance ONLY when the jump is
+  # downrange of the known heading AND physically reachable: distance must be
+  # <= speed * elapsed * speed_slack, capped at max_hop_km. So Chernihiv ->
+  # Poltava (~330 km) never chains for a drone or a "Бандероль".
+  trajectory: true
+  speed_slack: 1.25                   # imprecision margin on speed * elapsed
+  max_hop_km: 200                     # a single sighting->sighting jump cap
+  heading_tolerance_deg: 55           # jump must be within this of the heading
+  count_tolerance: 1                  # |a - b| group sizes still "the same"
+  speed_kmh:                          # honest cruise speeds (km/h)
+    shahed: 170                       # "basic" Shahed / мопед, stays under ~300
+    jet_uav: 560                      # "реактивний" / turbo
+    recon_uav: 140
+    cruise_missile: 620               # Бандероль-class, not Kalibr-fast
+    ballistic: 2000
+    kab: 260
+    aircraft: 700
+    unknown: 220
+
+# ---------------------------------------------------------------------------
+# Parsing
+# ---------------------------------------------------------------------------
+parse:
+  languages: [uk, ru]
+  min_confidence: 0.0         # drop events below this parse_confidence
+  llm:
+    enabled: false            # rules-only by default (Raspberry-Pi friendly)
+    provider: none            # none | ollama | openai_compatible
+    # ollama:
+    endpoint: "http://localhost:11434/api/generate"
+    model: "llama3.1:8b"
+    # openai_compatible (also used for a local llama.cpp server):
+    # endpoint: "http://localhost:8080/v1/chat/completions"
+    # model: "local-model"
+    # api_key_env: OPENAI_API_KEY
+    timeout: 45
+    # Only call the LLM when the rules produced no threat OR no location.
+    only_on_gap: true
+
+# ---------------------------------------------------------------------------
+# Web server
+# ---------------------------------------------------------------------------
+server:
+  host: 127.0.0.1
+  port: 8750
+  # Raster tile template. OSM needs internet; swap for a local tile server
+  # or an MBTiles proxy when running offline on a Pi.
+  tile_url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+  tile_attribution: "&copy; OpenStreetMap contributors"
+  # Night mode. Empty tile_url_dark (default) = invert the normal OSM tiles
+  # with a CSS filter: no extra CDN, works offline, gives a grey/black map
+  # with light labels. Set it to a real dark tile server if you have one that
+  # your network can reach, e.g.
+  #   "https://{s}.basemap.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+  tile_url_dark: ""
+  tile_attribution_dark: "&copy; OpenStreetMap contributors"
+  map_theme: dark            # dark | light  (the ☀/🌙 button overrides per browser)
+
+database:
+  path: data/dronevis.db
+
+log_level: INFO

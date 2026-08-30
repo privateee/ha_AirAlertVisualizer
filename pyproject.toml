@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dronevisualizer"
+version = "0.1.0"
+description = "Read Ukrainian air-threat Telegram channels and plot them on a live map"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "selectolax>=0.3.21",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.2",
+    "apscheduler>=3.10,<4",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "python-dateutil>=2.9",
+    "rapidfuzz>=3.9",
+    "truststore>=0.9",
+    "certifi>=2024.2",
+]
+
+[project.scripts]
+dronevis = "dronevis.__main__:main"
+
+[tool.setuptools]
+packages = ["dronevis", "dronevis.ingest", "dronevis.parse", "dronevis.geo"]
+
+[tool.setuptools.package-data]
+"dronevis" = [
+    "web/*",
+    "web/vendor/leaflet/*",
+    "web/vendor/leaflet/images/*",
+]
+"dronevis.geo" = ["data/*.json"]

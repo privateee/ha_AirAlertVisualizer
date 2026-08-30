@@ -1,0 +1,14 @@
+{
+  "name": "DroneVisualizer",
+  "short_name": "DroneVis",
+  "description": "Ukrainian air-threat Telegram channels on a live map",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#10141b",
+  "theme_color": "#10141b",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
