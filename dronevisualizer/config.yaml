@@ -1,5 +1,5 @@
 name: "DroneVisualizer"
-version: "0.1.2"
+version: "0.1.3"
 slug: "dronevisualizer"
 description: "Ukrainian air-threat Telegram channels on a live map"
 url: "https://github.com/privateee/ha_AirAlertVisualizer"
