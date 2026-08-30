@@ -1,11 +1,8 @@
-#!/usr/bin/env bash
-set -euo pipefail
-# shellcheck disable=SC1091
-source /usr/lib/bashio/bashio.sh
+#!/usr/bin/with-contenv bashio
 
 export DRONEVIS_HOST="0.0.0.0"
-export DRONEVIS_PORT="8099"                       # matches ingress_port
-export DRONEVIS_DB_PATH="/data/dronevis.db"       # /data is the add-on's persistent store
+export DRONEVIS_PORT="8099"                       # == ingress_port
+export DRONEVIS_DB_PATH="/data/dronevis.db"       # persistent add-on store
 
 export DRONEVIS_CHANNELS="$(bashio::config 'channels' | paste -sd, -)"
 export DRONEVIS_POLL_INTERVAL="$(bashio::config 'poll_interval_seconds')"
@@ -19,7 +16,7 @@ export DRONEVIS_TILE_URL_DARK="$(bashio::config 'tile_url_dark' '')"
 [ "${DRONEVIS_TILE_URL_DARK}" = "null" ] && export DRONEVIS_TILE_URL_DARK=""
 export DRONEVIS_LOG_LEVEL="$(bashio::config 'log_level')"
 
-bashio::log.info "DroneVisualizer -> channels: ${DRONEVIS_CHANNELS}"
-bashio::log.info "Open it from the sidebar (ingress) or Add-on 'Open Web UI'."
+mkdir -p /data
+bashio::log.info "DroneVisualizer -> :${DRONEVIS_PORT} (ingress); channels: ${DRONEVIS_CHANNELS}"
 
-exec dronevis run
+exec python -m dronevis run

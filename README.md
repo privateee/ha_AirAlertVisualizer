@@ -105,11 +105,11 @@ theme.
 
 **Home Assistant add-on (sidebar panel via ingress, uses HA auth):**
 
-The `addon/` folder is a ready HA add-on that `pip install`s the app from git.
-Point `repository.yaml`, `addon/config.yaml` and `addon/build.yaml` at your
+The `dronevisualizer/` folder is a ready HA add-on that `pip install`s the app from git.
+Point `repository.yaml`, `dronevisualizer/config.yaml` and `dronevisualizer/build.yaml` at your
 fork, then in HA: **Settings → Add-ons → Store → ⋮ → Repositories**, add your
 repo URL, install **DroneVisualizer**, Start, open it from the sidebar. Full
-notes in [`addon/DOCS.md`](addon/DOCS.md).
+notes in [`dronevisualizer/README.md`](dronevisualizer/README.md).
 
 Key env vars: `DRONEVIS_CHANNELS` (comma-sep), `DRONEVIS_POLL_INTERVAL`,
 `DRONEVIS_AREA_CENTER` (`lat,lon`), `DRONEVIS_AREA_RADIUS_KM`,
@@ -190,7 +190,7 @@ scripts/build_gazetteer.py   merge GeoNames into the seed gazetteer
 launcher.pyw                 Tkinter Start/Stop window (Windows)
 DroneVisualizer.bat / .vbs   double-click to open the launcher
 Dockerfile / docker-compose.yml   run it anywhere as a container
-addon/                       Home Assistant add-on (ingress panel)
+dronevisualizer/                     Home Assistant add-on (ingress panel)
 pyproject.toml               pip-installable package (dronevis entrypoint)
 ```
 

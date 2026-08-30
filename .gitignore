@@ -8,6 +8,6 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 data/.server.pid
-config.yaml
+/config.yaml
 .env
 *.log

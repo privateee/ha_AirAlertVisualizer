@@ -8,12 +8,12 @@ map with the message feed. Opens as a sidebar panel through HA **ingress**
 ## Install
 
 1. **Settings → Add-ons → Add-on Store → ⋮ → Repositories** and add
-   `https://github.com/privateee/ha_AirAlertVisualizer`.
+   `https://github.com/privateee/ha_AirAlertVisualizer`, then **⋮ → Check for
+   updates** and scroll to the "DroneVisualizer" section at the bottom.
    The add-on Dockerfile `pip install`s the app straight from this git URL
-   (`DRONEVIS_REF` in `addon/build.yaml` pins the branch/tag). If you fork it,
-   repoint `repository.yaml`, `addon/config.yaml` and `addon/build.yaml`.
-2. Install **DroneVisualizer** from the store, **Start**, open it from the
-   sidebar.
+   (`DRONEVIS_REF` in `dronevisualizer/build.yaml` pins the branch/tag). To
+   fork it, repoint `repository.yaml` and `dronevisualizer/{config,build}.yaml`.
+2. Install **DroneVisualizer**, **Start**, open it from the sidebar.
 
 ## Options
 
