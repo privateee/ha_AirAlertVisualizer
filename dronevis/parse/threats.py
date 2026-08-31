@@ -35,48 +35,37 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-# --- families: the deduper never merges across families ---------------------
-FAMILY = {
-    "shahed": "drone",
-    "jet_uav": "drone",
-    "recon_uav": "drone",
-    "cruise_missile": "missile",
-    "ballistic": "missile",
-    "kab": "bomb",
-    "aircraft": "aircraft",
-    "unknown": "unknown",
-}
+# One row per threat slug. family = dedupe bucket (never merged across);
+# speed_kmh = cruise speed used by the trajectory-chaining reachability gate.
+#   slug            family       colour     label                        short        speed
+_TAXONOMY: list[tuple] = [
+    ("shahed",        "drone",    "#e2493d", "Shahed / attack UAV",       "Shahed",     170),
+    ("jet_uav",       "drone",    "#b5179e", "Jet-powered UAV",           "Jet UAV",    560),
+    ("recon_uav",     "drone",    "#f4a259", "Recon UAV",                 "Recon",      140),
+    ("banderol",      "cruise",   "#4895ef", "Banderol cruise missile",   "Banderol",   600),
+    ("kalibr",        "cruise",   "#3a86ff", "Kalibr cruise missile",     "Kalibr",     880),
+    ("x101",          "cruise",   "#2667ff", "Kh-101 / 55 cruise missile", "Kh-101",    840),
+    ("x22",           "cruise",   "#1d4ed8", "Kh-22 / 32 cruise missile", "Kh-22",     1100),
+    ("cruise_missile", "cruise",  "#3a86ff", "Cruise missile",            "Cruise",     750),
+    ("kinzhal",       "ballistic", "#c77dff", "Kinzhal aeroballistic",    "Kinzhal",   4000),
+    ("iskander",      "ballistic", "#9d4edd", "Iskander / KN-23",         "Iskander",  2100),
+    ("ballistic",     "ballistic", "#8338ec", "Ballistic missile",        "Ballistic", 2000),
+    ("kab",           "bomb",     "#ffb703", "Guided bomb (KAB / FAB)",   "KAB",        260),
+    ("aircraft",      "aircraft", "#2a9d8f", "Crewed aircraft",           "Aircraft",   700),
+    ("unknown",       "unknown",  "#8d99ae", "Unidentified air threat",   "Other",      220),
+]
 
-# --- colours for the map (one source of truth for backend + docs) ----------
-COLOR = {
-    "shahed": "#e2493d",
-    "jet_uav": "#b5179e",
-    "recon_uav": "#f4a259",
-    "cruise_missile": "#3a86ff",
-    "ballistic": "#8338ec",
-    "kab": "#ffb703",
-    "aircraft": "#2a9d8f",
-    "unknown": "#8d99ae",
-}
+FAMILY = {r[0]: r[1] for r in _TAXONOMY}
+COLOR = {r[0]: r[2] for r in _TAXONOMY}
+LABEL = {r[0]: r[3] for r in _TAXONOMY}
+SHORT = {r[0]: r[4] for r in _TAXONOMY}
+SPEED_KMH = {r[0]: float(r[5]) for r in _TAXONOMY}
+ALL_SLUGS = [r[0] for r in _TAXONOMY]
 
-LABEL = {
-    "shahed": "Shahed / attack UAV",
-    "jet_uav": "Jet-powered UAV",
-    "recon_uav": "Recon UAV",
-    "cruise_missile": "Cruise missile",
-    "ballistic": "Ballistic / aeroballistic",
-    "kab": "Guided bomb (KAB)",
-    "aircraft": "Crewed aircraft",
-    "unknown": "Unidentified air threat",
-}
-
-SHORT = {
-    "shahed": "Shahed", "jet_uav": "Jet UAV", "recon_uav": "Recon",
-    "cruise_missile": "Cruise", "ballistic": "Ballistic", "kab": "KAB",
-    "aircraft": "Aircraft", "unknown": "Other",
-}
-
-ALL_SLUGS = list(LABEL.keys())
+# pseudo-slug: "all clear" markers (not a filterable threat type)
+COLOR["clear"] = "#3ddc84"
+LABEL["clear"] = "All clear"
+SHORT["clear"] = "Clear"
 
 
 @dataclass(slots=True)
@@ -93,21 +82,40 @@ def _rx(*words: str) -> list[re.Pattern]:
 
 
 RULES: list[ThreatRule] = [
+    # --- ballistic family (specific first) ---
+    ThreatRule("kinzhal", 99, _rx(
+        r"\bкинджал", r"\bкинжал", r"\bх[\s-]?47\b", r"\bkh[\s-]?47\b",
+    )),
+    ThreatRule("iskander", 98, _rx(
+        r"\bискандер", r"\biskander", r"\bкн[\s-]?23\b", r"\bkn[\s-]?23\b",
+        r"\b9м72", r"\bкндр\b",
+    ), anti=_rx(r"искандер[\s-]*к\b")),
     ThreatRule("ballistic", 95, _rx(
         r"\bбал+истик", r"\bбал+истич", r"\b[аэ][эе]?робал+истич",
-        r"\bкинджал", r"\bкинжал",
-        r"\bискандер[\s-]*м\b", r"\bкн[\s-]?23\b", r"\bkn[\s-]?23\b",
         r"\bс[\s-]?300\b[^.]*\b(пуск|ракет|удар|загроз)", r"\bс[\s-]?400\b[^.]*\bпуск",
+        r"\bбр[\s-]?загроз", r"загроза\s+заст\w*\s+балист",
     )),
-    ThreatRule("cruise_missile", 90, _rx(
-        r"\bкрилат", r"\bкрылат",
-        r"\bкалибр", r"\bkalibr",
-        r"\bх[\s-]?101\b", r"\bх[\s-]?555\b", r"\bх[\s-]?59\b", r"\bх[\s-]?69\b",
-        r"\bх[\s-]?22\b", r"\bх[\s-]?35\b", r"\bx[\s-]?101\b", r"\bx[\s-]?59\b",
-        r"\bбандерол", r"\bмгкр\b", r"\bоникс", r"\bциркон",
-        r"\bискандер[\s-]*к\b", r"\bкрилатих\b", r"\bракет[аи]\b",
+    # --- cruise family (specific first) ---
+    ThreatRule("banderol", 92, _rx(
+        r"\bбандерол", r"\bмгкр\b", r"\bs[\s-]?8000\b",
     )),
-    ThreatRule("kab", 88, _rx(
+    ThreatRule("x22", 92, _rx(
+        r"\bх[\s-]?22\b", r"\bх[\s-]?32\b", r"\bкх[\s-]?22\b", r"\bkh[\s-]?22\b",
+    )),
+    ThreatRule("x101", 91, _rx(
+        r"\bх[\s-]?101\b", r"\bх[\s-]?55\b", r"\bх[\s-]?555\b",
+        r"\bx[\s-]?101\b", r"\bx[\s-]?55\b",
+    )),
+    ThreatRule("kalibr", 91, _rx(
+        r"\bкалибр", r"\bkalibr", r"\b3м[\s-]?14\b", r"\bкалибри\b",
+    )),
+    ThreatRule("cruise_missile", 88, _rx(
+        r"\bкрилат", r"\bкрылат", r"\bкр\b",
+        r"\bх[\s-]?59\b", r"\bх[\s-]?69\b", r"\bх[\s-]?35\b", r"\bx[\s-]?59\b",
+        r"\bоникс", r"\bциркон", r"\bискандер[\s-]*к\b",
+        r"\bкрилатих\b", r"\bракет[аи]\b",
+    )),
+    ThreatRule("kab", 90, _rx(
         r"\bкаб(?:а|и|ив|ов|ами|у|ом|iв)?\b", r"\bумпк\b", r"\bумпб\b",
         r"керован\w*\s+ав[иі]а", r"\bфаб[\s-]?\d", r"\bд[\s-]?30\b",
         r"глаид[\s-]?бомб", r"\bав[иі]абомб",

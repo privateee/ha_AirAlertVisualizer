@@ -14,6 +14,8 @@ from typing import Any
 
 import yaml
 
+from .parse.threats import SPEED_KMH as _DEFAULT_SPEED_KMH
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -51,16 +53,9 @@ class AreasConfig:
     defined: dict[str, Area] = field(default_factory=dict)
 
 
-# Honest cruise speeds (km/h). "basic" attack UAVs (Shahed/мопед) stay under
-# ~300; jet-powered ("реактивний"/turbo) ~500-600; the "Бандероль" small
-# cruise missile is ~600, not Kalibr-fast. These are the hard reachability
-# gate for trajectory chaining - Chernihiv->Poltava (~330 km) must not chain
-# for anything short of a ballistic missile.
-_DEFAULT_SPEED_KMH = {
-    "shahed": 170.0, "jet_uav": 560.0, "recon_uav": 140.0,
-    "cruise_missile": 620.0, "ballistic": 2000.0, "kab": 260.0,
-    "aircraft": 700.0, "unknown": 220.0,
-}
+# Cruise speeds per threat slug come from the taxonomy in parse/threats.py
+# (imported at top as _DEFAULT_SPEED_KMH); a `dedupe.speed_kmh` block in
+# config.yaml overrides individual entries.
 
 
 @dataclass(slots=True)

@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS cluster (
     count_max        INTEGER,                        -- peak reported
     event_count      INTEGER NOT NULL DEFAULT 0,     -- number of reports
     channels         TEXT    NOT NULL DEFAULT '[]',  -- json list
+    resolved_at      TEXT,                           -- set when an "all clear" landed
     updated_at       TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_cluster_last   ON cluster (last_posted_at);
@@ -120,7 +121,9 @@ class Database:
     def _migrate(self) -> None:
         """Additive column migrations for databases created by older versions."""
         have = {r["name"] for r in self._conn.execute("PRAGMA table_info(cluster)")}
-        for col, decl in (("count", "INTEGER"), ("count_max", "INTEGER")):
+        for col, decl in (
+            ("count", "INTEGER"), ("count_max", "INTEGER"), ("resolved_at", "TEXT"),
+        ):
             if col not in have:
                 self._conn.execute(f"ALTER TABLE cluster ADD COLUMN {col} {decl}")
 

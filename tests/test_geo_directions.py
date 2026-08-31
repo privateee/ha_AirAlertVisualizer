@@ -103,5 +103,10 @@ class TestPipeline:
     def test_non_terse_channel_ignores_bare_toponym(self, parse):
         assert parse("Соф борщага на Вишневе.", channel="war_monitor") == []
 
-    def test_clear_message_no_events(self, parse):
-        assert parse("Дніпро та Полтава чисто, лунали вибухи.") == []
+    def test_clear_message_makes_clear_markers(self, parse):
+        evs = parse("Дніпро та Полтава чисто, лунали вибухи.")
+        assert evs and all(e.threat_type == "clear" for e in evs)
+
+    def test_clear_ignored_when_line_also_has_a_threat(self, parse):
+        (e,) = parse("Бровари: 3х шахеди курсом на Київ, потім тихо чисто")
+        assert e.threat_type == "shahed"

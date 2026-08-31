@@ -13,17 +13,39 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import re
+
 from ..config import Config
 from ..geo.gazetteer import Gazetteer, PlaceHit
 from ..geo.util import bearing_deg
 from ..log import get_logger
-from .directions import analyze
+from .directions import analyze, is_clear
 from .normalize import extract_count, fold, normalize, split_lines
 from .threats import FAMILY, ThreatMatch, classify_line
 
 log = get_logger("parse")
 
 _UNKNOWN_MATCH = ThreatMatch("unknown", "", 0)
+
+# Recap / aftermath / siren-status posts that must NOT become map clusters
+# (they still show in the feed). Deliberately narrow.
+_SUMMARY_RX = re.compile(
+    r"\bза\s+(нич|ничь|добу|минул)"
+    r"|\bминул[аоу]\w*\s+ноч"
+    r"|\bунаслидок|\bвнаслидок"
+    r"|\bстаном\s+на\s+\d"
+    r"|\bпидсумк|\bподсчет|\bпидрахун"
+    r"|\b(усього|всього|загалом)\s+(збит|знищен|сбит|уничтожен|випуст|запуст)"
+    r"|\b(збит|знищен|сбит|уничтожен)\w*\s+\d{2,}"
+    r"|\bповитрян\w*\s+тривог\w*\s*$"
+    r"|\bвидбий\s+тривог"
+    r"|\bдовидков|\bинфографик|\bстатистик",
+    re.I,
+)
+
+
+def is_summary(folded_text: str) -> bool:
+    return bool(_SUMMARY_RX.search(folded_text))
 
 
 @dataclass(slots=True)
@@ -92,6 +114,12 @@ class Parser:
         area_center: tuple[float, float] | None = None,
     ) -> list[ParsedEvent]:
         folded_full = fold(text)
+
+        # recap / statistics / siren-status posts stay in the feed but never
+        # produce map markers
+        if is_summary(folded_full):
+            return []
+
         oblast_hint = self.gaz.detect_oblast(folded_full)
         _rh = self.gaz.region_hit(folded_full)       # (label, (lat, lon)) | None
         region = (_rh[0], _rh[1][0], _rh[1][1]) if _rh else None
@@ -113,7 +141,22 @@ class Parser:
             fline = fold(line)
             hits = self.gaz.find(fline, oblast_hint=oblast_hint,
                                  area_center=area_center)
+
             tm = classify_line(fline)
+
+            # a *pure* "all clear" for a place (no threat words on the line)
+            # -> a marker the deduper uses to resolve matching open clusters
+            if tm is None and hits and is_clear(fline):
+                h = hits[0]
+                events.append(ParsedEvent(
+                    threat_type="clear", threat_raw=None, count=None,
+                    status="clear", place_name=h.place.name,
+                    lat=h.place.lat, lon=h.place.lon, geo_confidence=0.8,
+                    raw_line=line.strip()[:400], parse_method="rules",
+                    parse_confidence=0.7,
+                ))
+                continue
+
             if tm is None:
                 if terse and hits:
                     tm = _UNKNOWN_MATCH

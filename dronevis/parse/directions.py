@@ -74,7 +74,15 @@ _MARKERS: list[tuple[str, list[re.Pattern]]] = [
 _LAUNCH_RX = re.compile(r"\b(пуск\w*|запуск\w*|старт\w*|зл[іи]т\w*|взлет\w*)\b", re.I)
 _IMPACT_RX = re.compile(r"\b(вибух\w*|прил[ьеі]т\w*|прил[оі]т\w*|детонац\w*|уражен\w*|"
                         r"работа\s+пво|збит\w*|сбит\w*)\b", re.I)
-_CLEAR_RX = re.compile(r"\b(чисто|в[іи]дб[іи]й\w*|отб[оі]й\w*|минув\w*|пройшл\w*\s+повз)\b", re.I)
+_CLEAR_RX = re.compile(
+    r"\b(чисто|в[іи]дб[іи]й\w*|отб[оі]й\w*|минув\w*|минул[аои]\w*|прол[еі]т[еі]л\w*\s+повз|"
+    r"пройшл\w*\s+повз|загроз\w*\s+мин\w*|небо\s+чист\w*|все\s+тих\w*)\b", re.I,
+)
+
+
+def is_clear(folded_line: str) -> bool:
+    """True if the line is an 'all clear' / threat-passed statement."""
+    return bool(_CLEAR_RX.search(folded_line))
 
 # "з півночі", "со стороны юга", "із північного заходу" -> the compass point
 # the object is coming FROM. Heading is the opposite (+180). Folded alphabet.

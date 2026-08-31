@@ -27,6 +27,22 @@ def in_area(area: Area, lat: float | None, lon: float | None) -> bool:
     return True
 
 
+def cluster_touches_area(area: Area, c) -> bool:
+    """A cluster is 'in the area' if its current position OR its declared
+    destination is inside - so 'ballistic -> Kyiv' counts even while the
+    missile is still far away."""
+    return (
+        in_area(area, c["centroid_lat"], c["centroid_lon"])
+        or in_area(area, c["dest_lat"], c["dest_lon"])
+    )
+
+
+def area_distance_km(area: Area, lat: float | None, lon: float | None) -> float | None:
+    if lat is None or lon is None:
+        return None
+    return haversine_km((lat, lon), area_center(area))
+
+
 def resolve_area(cfg: Config, key: str | None) -> Area | None:
     """``None`` / 'all' -> no filter. Otherwise the named area (falling back to
     the configured default)."""

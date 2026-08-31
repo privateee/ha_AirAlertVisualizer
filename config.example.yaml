@@ -67,15 +67,14 @@ dedupe:
   max_hop_km: 200                     # a single sighting->sighting jump cap
   heading_tolerance_deg: 55           # jump must be within this of the heading
   count_tolerance: 1                  # |a - b| group sizes still "the same"
-  speed_kmh:                          # honest cruise speeds (km/h)
+  # Per-threat cruise speeds (km/h). Defaults live in parse/threats.py
+  # (SPEED_KMH); override any subset here. Slugs: shahed jet_uav recon_uav
+  # banderol kalibr x101 x22 cruise_missile kinzhal iskander ballistic kab
+  # aircraft unknown.
+  speed_kmh:
     shahed: 170                       # "basic" Shahed / мопед, stays under ~300
     jet_uav: 560                      # "реактивний" / turbo
-    recon_uav: 140
-    cruise_missile: 620               # Бандероль-class, not Kalibr-fast
-    ballistic: 2000
-    kab: 260
-    aircraft: 700
-    unknown: 220
+    banderol: 600                     # small cruise missile, not Kalibr-fast
 
 # ---------------------------------------------------------------------------
 # Parsing

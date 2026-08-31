@@ -48,12 +48,18 @@ class Deduper:
         window = timedelta(minutes=self.cfg.time_window_minutes)
         now = _dt(posted_at)
         since = (now - window).isoformat()
+
+        if ev.threat_type == "clear":
+            return self._resolve_nearby(ev, posted_at)
+
         family = FAMILY.get(ev.threat_type, "unknown")
         max_span = timedelta(minutes=self.cfg.max_span_minutes)
 
         best_id: int | None = None
         best_score = 0.0
         for c in self.db.open_clusters(since):
+            if c["resolved_at"] is not None:
+                continue
             if self.cfg.incompatible_split and FAMILY.get(c["threat_type"]) != family:
                 continue
             gap = abs((now - _dt(c["last_posted_at"])).total_seconds())
@@ -69,6 +75,22 @@ class Deduper:
             self._attach(best_id, event_id, ev, channel, posted_at)
             return best_id
         return self._create(event_id, ev, channel, posted_at)
+
+    def _resolve_nearby(self, ev: ParsedEvent, posted_at: str) -> int:
+        """An 'all clear' at a place marks open clusters there as resolved."""
+        if ev.lat is None:
+            return -1
+        window = timedelta(minutes=self.cfg.time_window_minutes * 2)
+        since = (_dt(posted_at) - window).isoformat()
+        for c in self.db.open_clusters(since):
+            if c["resolved_at"] is not None or c["centroid_lat"] is None:
+                continue
+            same = c["place_name"] and c["place_name"] == ev.place_name
+            near = haversine_km((ev.lat, ev.lon),
+                                (c["centroid_lat"], c["centroid_lon"])) <= self.cfg.distance_km
+            if same or near:
+                self.db.update_cluster(c["id"], {"resolved_at": posted_at})
+        return -1
 
     # -- scoring --------------------------------------------------------
     def _count_match(self, a, b) -> bool:

@@ -19,7 +19,7 @@ from dateutil import parser as dtp
 from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 
-from .areas import in_area, resolve_area
+from .areas import cluster_touches_area, in_area, resolve_area
 from .config import Config, load_config
 from .db import Database
 from .geo.util import bearing_deg, compass, haversine_km
@@ -135,6 +135,7 @@ def create_app(cfg: Config | None = None):
         channels: str | None = None,
         min_conf: float = 0.0,
         located_only: bool = True,
+        include_resolved: bool = False,
     ):
         t0 = _parse_time(since, default_hours=6)
         t1 = _parse_time(until, default_hours=0) if until else datetime.now(timezone.utc)
@@ -142,11 +143,10 @@ def create_app(cfg: Config | None = None):
         want_threats = set(_csv(threats) or [])
         want_channels = set(_csv(channels) or [])
 
-        rows = db.query(
-            "SELECT * FROM cluster WHERE last_posted_at >= ? AND first_posted_at <= ? "
-            "ORDER BY last_posted_at DESC",
-            (t0.isoformat(), t1.isoformat()),
-        )
+        sql = ("SELECT * FROM cluster WHERE last_posted_at >= ? AND first_posted_at <= ? "
+               + ("" if include_resolved else "AND resolved_at IS NULL ")
+               + "ORDER BY last_posted_at DESC")
+        rows = db.query(sql, (t0.isoformat(), t1.isoformat()))
 
         # cheap filters first, so we only pull events for clusters we will show
         kept = []
@@ -155,7 +155,7 @@ def create_app(cfg: Config | None = None):
                 continue
             if located_only and c["centroid_lat"] is None:
                 continue
-            if area_obj and not in_area(area_obj, c["centroid_lat"], c["centroid_lon"]):
+            if area_obj and not cluster_touches_area(area_obj, c):
                 continue
             if want_channels and not (want_channels & set(_json(c["channels"]))):
                 continue
