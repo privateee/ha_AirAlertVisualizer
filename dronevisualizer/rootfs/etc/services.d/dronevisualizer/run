@@ -1,7 +1,7 @@
 #!/usr/bin/with-contenv bashio
 
 export DRONEVIS_HOST="0.0.0.0"
-export DRONEVIS_PORT="8099"                       # == ingress_port
+export DRONEVIS_PORT="8099"                       # HA ingress default port
 export DRONEVIS_DB_PATH="/data/dronevis.db"       # persistent add-on store
 
 export DRONEVIS_CHANNELS="$(bashio::config 'channels' | paste -sd, -)"
