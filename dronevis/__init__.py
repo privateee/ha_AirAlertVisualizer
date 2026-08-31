@@ -11,4 +11,4 @@ Package layout:
     api       FastAPI app + static web UI
 """
 
-__version__ = "0.9.4"
+__version__ = "0.9.5"

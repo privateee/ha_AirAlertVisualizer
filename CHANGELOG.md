@@ -2,6 +2,16 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.5 — 2026-08-31
+
+- **Add-on icon.** `dronevisualizer/icon.png` (the app's radar mark) now shows
+  in the Home Assistant add-on store and on the add-on page.
+- **Fixed: the feed sheet was impossible to close on a phone.** Tapping a map
+  bubble raised the sheet to show that report; tapping again (on the handle)
+  raised it *further* instead of closing. The sheet is now a simple two-state
+  toggle — the handle opens and closes it, tapping the map closes it, and it
+  leaves a strip of map visible so that target always exists.
+
 ## 0.9.4 — 2026-08-31
 
 - **Desktop header fits one line again.** A collapsed "Threats" section no

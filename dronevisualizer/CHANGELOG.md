@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.5
+
+Added the add-on icon (shows in the store and on the add-on page). Fixed the
+feed sheet being impossible to close on a phone — it's now a simple open/close
+toggle (handle toggles, tapping the map closes it).
+
 ## 0.9.4
 
 Desktop header fits one line again: a collapsed "Threats" section no longer

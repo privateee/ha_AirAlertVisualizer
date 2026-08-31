@@ -102,25 +102,17 @@ function applyLayout() {
 function cycleLayout() {
   layoutPref = { auto: "pc", pc: "mobile", mobile: "auto" }[layoutPref];
   lsSet("layout", layoutPref);
-  document.body.classList.remove("sheet-open", "sheet-mid", "filters-open");
+  document.body.classList.remove("sheet-open", "filters-open");
   applyLayout();
 }
 
 WIDE_MQ.addEventListener("change", () => { if (layoutPref === "auto") applyLayout(); });
 
-// ------------------------------------------------------- 3-state bottom sheet
-// peek -> mid -> open -> peek
-function cycleSheet() {
-  const b = document.body;
-  if (b.classList.contains("sheet-open")) {
-    b.classList.remove("sheet-open", "sheet-mid");
-  } else if (b.classList.contains("sheet-mid")) {
-    b.classList.remove("sheet-mid");
-    b.classList.add("sheet-open");
-  } else {
-    b.classList.add("sheet-mid");
-  }
-}
+// -------------------------------------------------------------- bottom sheet
+// two states only: peeking (handle) <-> open. The handle just toggles.
+function openSheet() { document.body.classList.add("sheet-open"); }
+function closeSheet() { document.body.classList.remove("sheet-open"); }
+function toggleSheet() { document.body.classList.toggle("sheet-open"); }
 
 // ---------------------------------------------------------------- map theme
 function loadMapTheme() {
@@ -313,7 +305,7 @@ function wire() {
   $("#filtersToggle").addEventListener("click", () => {
     document.body.classList.toggle("filters-open");
   });
-  $("#sheetHandle").addEventListener("click", cycleSheet);
+  $("#sheetHandle").addEventListener("click", toggleSheet);
 
   $("#area").addEventListener("change", (e) => {
     state.area = e.target.value;
@@ -374,16 +366,8 @@ function wire() {
 
   map.on("popupclose", () => { if (state.pinned) { state.pinned = null; markPinned(); } });
 
-  // tap the map to step the feed sheet back down (open -> mid -> peek), so a
-  // raised sheet is never a dead end on a phone
-  map.on("click", () => {
-    const b = document.body;
-    if (b.classList.contains("sheet-open")) {
-      b.classList.remove("sheet-open"); b.classList.add("sheet-mid");
-    } else if (b.classList.contains("sheet-mid")) {
-      b.classList.remove("sheet-mid");
-    }
-  });
+  // tapping the map closes a raised feed sheet, so it's never a dead end
+  map.on("click", closeSheet);
 }
 
 function startTimer() {
@@ -637,7 +621,7 @@ function destPoint(lat, lon, bearing, km) {
 function showMessageOnMap(m) {
   const loc = (m.events || []).find((e) => e.lat != null && e.lon != null);
   if (!loc) return;
-  if (isMobile()) document.body.classList.remove("sheet-open", "sheet-mid");
+  if (isMobile()) closeSheet();
   map.flyTo([loc.lat, loc.lon], Math.max(map.getZoom(), 10), { duration: 0.6 });
 }
 
@@ -650,10 +634,10 @@ function markPinned(c, raise = false) {
     li.classList.toggle("pinned", !!urls && urls.has(li.dataset.url));
   });
   if (!c) return;
-  const b = document.body;
-  if (raise && isMobile() &&
-      !b.classList.contains("sheet-mid") && !b.classList.contains("sheet-open")) {
-    b.classList.add("sheet-mid");                    // peek -> mid, once
+  // a real marker tap raises the sheet once; re-applying the highlight after a
+  // poll must not re-raise it if the user has since closed it
+  if (raise && isMobile() && !document.body.classList.contains("sheet-open")) {
+    openSheet();
   }
   const first = $("#msgs .msg.pinned");
   if (first) first.scrollIntoView({ block: "nearest", behavior: "smooth" });
