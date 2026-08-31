@@ -42,7 +42,7 @@ const I18N = {
   en: {
     brand: "DroneVisualizer", area: "Area", window: "Window", live: "Live",
     fetch: "Fetch", feed: "Feed", filterText: "filter text…", now: "now",
-    threats: "Threats", myloc: "My location", locating: "locating…",
+    threats: "Threats", options: "Options", myloc: "My location", locating: "locating…",
     locpin: "You", inFeed: "in feed", new: "new", tracks: "tracks",
     updated: "updated", stale: "no updates for", offline: "server offline",
     showOnMap: "◎ show on map", reports: "reports", peak: "peak",
@@ -55,7 +55,7 @@ const I18N = {
   uk: {
     brand: "DroneVisualizer", area: "Регіон", window: "Період", live: "Наживо",
     fetch: "Оновити", feed: "Стрічка", filterText: "пошук у тексті…", now: "зараз",
-    threats: "Загрози", myloc: "Моє місце", locating: "визначення…",
+    threats: "Загрози", options: "Опції", myloc: "Моє місце", locating: "визначення…",
     locpin: "Ви", inFeed: "у стрічці", new: "нових", tracks: "цілей",
     updated: "оновлено", stale: "немає оновлень", offline: "сервер недоступний",
     showOnMap: "◎ показати на мапі", reports: "повідомлень", peak: "макс",
@@ -208,6 +208,8 @@ async function init() {
 
     const tbox = $("#threatsBox");
     if (tbox && lsGet("threatsOpen") === "0") tbox.open = false;
+    const obox = $("#optsBox");
+    if (obox && lsGet("optsOpen") === "1") obox.open = true;
 
     applyI18n();
     buildAreas();
@@ -345,6 +347,9 @@ function wire() {
   $("#layout").addEventListener("click", cycleLayout);
   $("#threatsBox")?.addEventListener("toggle", (e) => {
     lsSet("threatsOpen", e.target.open ? "1" : "0");
+  });
+  $("#optsBox")?.addEventListener("toggle", (e) => {
+    lsSet("optsOpen", e.target.open ? "1" : "0");
   });
   $("#lang").addEventListener("click", () => {
     lang = lang === "uk" ? "en" : "uk";

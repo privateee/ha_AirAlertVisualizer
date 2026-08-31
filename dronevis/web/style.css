@@ -292,15 +292,21 @@ body.flash #main::after {
 }
 @keyframes flashout { from { opacity: 1; } to { opacity: 0; } }
 
-/* threat chips grouped by family - the groups double as the colour legend,
-   wrapped in a <details> so the whole block can be collapsed when not needed */
-#threatsBox { width: 100%; }
-#threatsBox > summary {
+/* Collapsible header sections: the threat chips (their family groups double as
+   the colour legend) and the secondary Options buttons. Collapsed, each is
+   just a one-word disclosure that sits inline; only the expanded threat chips
+   claim their own row. */
+#threatsBox[open] { width: 100%; }
+#threatsBox > summary,
+#optsBox > summary {
   cursor: pointer; color: var(--muted); padding: 4px 0;
   font-size: 12px; list-style-position: inside; user-select: none;
+  white-space: nowrap;
 }
 #threatsBox[open] > summary { margin-bottom: 6px; }
+#optsBox[open] > summary { margin-bottom: 6px; }
 #threatsBox #threats { flex-wrap: wrap; }
+#optsBox #moreActions { flex-wrap: wrap; }
 .chip-group { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 .chip-group + .chip-group { margin-top: 4px; }
 .chip-group-label {
@@ -347,13 +353,16 @@ body.flash #main::after {
    can override it at any width. */
 body.is-desktop { --sheet-peek: 0px; }
 body.is-desktop .brand span { display: inline; }
-body.is-desktop #bar { gap: 14px; flex-wrap: wrap; }
+body.is-desktop #bar { gap: 10px 14px; flex-wrap: wrap; }
 body.is-desktop #filtersToggle { display: none; }
 body.is-desktop #filters {
   position: static; display: flex; flex-direction: row; align-items: center;
-  flex-wrap: wrap; gap: 14px; padding: 0; background: none; box-shadow: none;
+  flex-wrap: wrap; gap: 8px 12px; padding: 0; background: none; box-shadow: none;
   border: none; max-height: none; overflow: visible;
 }
+/* collapsed sections stay inline; the map/actions row isn't pushed down */
+body.is-desktop #optsBox,
+body.is-desktop #threatsBox:not([open]) { align-self: center; }
 body.is-desktop #filters label { flex-direction: row; align-items: center; }
 body.is-desktop #filters #threats { flex-wrap: wrap; gap: 5px; }
 body.is-desktop #filters .chip { padding: 4px 8px; font-size: 11px; }

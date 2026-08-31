@@ -2,6 +2,15 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.4 — 2026-08-31
+
+- **Desktop header fits one line again.** A collapsed "Threats" section no
+  longer claims a full row — it only spreads out when you open it — so on a
+  normal-width window the whole bar (filters + actions) sits on a single row.
+- **New collapsible "Options" section** for the secondary buttons
+  (my-location / alert-sound / language), mirroring "Threats". Collapsed by
+  default; its state is remembered per browser.
+
 ## 0.9.3 — 2026-08-31
 
 - **Legend folded into the threat filter.** The separate Legend panel only

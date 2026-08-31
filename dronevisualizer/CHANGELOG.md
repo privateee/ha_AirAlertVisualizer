@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.4
+
+Desktop header fits one line again: a collapsed "Threats" section no longer
+takes a whole row. Added a matching collapsible "Options" section for the
+secondary buttons (location / sound / language), collapsed by default,
+state remembered.
+
 ## 0.9.3
 
 The separate Legend panel is gone - the colour-coded threat groups now double
