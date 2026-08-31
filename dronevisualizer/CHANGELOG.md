@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1
+
+Config cleanup: removed options that only restated Home Assistant defaults
+(`startup`, `ingress_port`, `ingress_entry`) and the unused `config` folder
+mount. No behaviour change.
+
 ## 0.9.0
 
 **Home Assistant sensors (MQTT discovery).** With the Mosquitto broker add-on

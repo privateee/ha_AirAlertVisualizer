@@ -2,6 +2,14 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.1 — 2026-08-31
+
+- Home Assistant add-on config: drop keys that only restated HA defaults
+  (`startup`, `ingress_port`, `ingress_entry`) and the unused `map: [config:rw]`
+  mount — the add-on keeps its database in `/data` and takes all configuration
+  via `DRONEVIS_*` env vars, so it never touches `/config`. Clears the
+  add-on linter errors; no behaviour change.
+
 ## 0.9.0 — 2026-08-31
 
 A large parsing / architecture / UI pass. Bundles what was developed as
