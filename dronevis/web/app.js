@@ -1,6 +1,7 @@
 "use strict";
 
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
 const WINDOW_MS = {
   "5m": 3e5, "15m": 9e5, "30m": 18e5, "1h": 36e5, "2h": 2 * 36e5, "3h": 3 * 36e5,
   "6h": 6 * 36e5, "12h": 12 * 36e5, "24h": 24 * 36e5, "48h": 48 * 36e5,
@@ -10,8 +11,13 @@ let CFG = null;
 let map = null;
 let tileLayer = null;
 const layer = L.layerGroup();
+const fxLayer = L.layerGroup();        // transient "new threat" pulses
+let hereMarker = null;
 let clusters = [];
+let lastMsgs = [];
 let timer = null;
+let seenIds = null;                     // cluster ids seen on a previous poll
+let audioCtx = null;
 
 const state = {
   area: null,
@@ -22,10 +28,53 @@ const state = {
   asOf: 1,                    // 0..1 across the window; 1 == now
   live: true,
   mapTheme: "dark",
+  here: null,                 // {lat, lon} "my location"
+  pinned: null,               // cluster id whose feed rows are highlighted
+  lastUpdate: 0,
 };
 
 function lsGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+
+// ================================================================ i18n
+const I18N = {
+  en: {
+    brand: "DroneVisualizer", area: "Area", window: "Window", live: "Live",
+    fetch: "Fetch", feed: "Feed", filterText: "filter text…", now: "now",
+    legend: "Legend", myloc: "My location", locating: "locating…",
+    locpin: "You", inFeed: "in feed", new: "new", tracks: "tracks",
+    updated: "updated", stale: "no updates for", offline: "server offline",
+    showOnMap: "◎ show on map", reports: "reports", peak: "peak",
+    heading: "heading", drone: "drone", unit: "unit", eta: "ETA",
+    away: "away", connecting: "Connecting to the DroneVisualizer server…",
+    cantReach: "Can't reach the DroneVisualizer server on this address.",
+    startWith: "Start it with:  python -m dronevis run   — then this page reconnects automatically.",
+    retry: "retry",
+  },
+  uk: {
+    brand: "DroneVisualizer", area: "Регіон", window: "Період", live: "Наживо",
+    fetch: "Оновити", feed: "Стрічка", filterText: "пошук у тексті…", now: "зараз",
+    legend: "Легенда", myloc: "Моє місце", locating: "визначення…",
+    locpin: "Ви", inFeed: "у стрічці", new: "нових", tracks: "цілей",
+    updated: "оновлено", stale: "немає оновлень", offline: "сервер недоступний",
+    showOnMap: "◎ показати на мапі", reports: "повідомлень", peak: "макс",
+    heading: "курс", drone: "дрон", unit: "од.", eta: "підліт",
+    away: "від вас", connecting: "З'єднання із сервером DroneVisualizer…",
+    cantReach: "Не вдається під'єднатися до сервера DroneVisualizer.",
+    startWith: "Запустіть:  python -m dronevis run   — сторінка під'єднається сама.",
+    retry: "спроба",
+  },
+};
+let lang = lsGet("lang") || ((navigator.language || "").startsWith("uk") ? "uk" : "en");
+if (!I18N[lang]) lang = "en";
+function t(k) { return (I18N[lang] && I18N[lang][k]) || I18N.en[k] || k; }
+function applyI18n() {
+  document.documentElement.lang = lang;
+  $$("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  $$("[data-i18n-ph]").forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
+  const lb = $("#lang");
+  if (lb) { lb.textContent = lang.toUpperCase(); lb.title = "Language / Мова"; }
+}
 
 // ---------------------------------------------------------------- layout
 const WIDE_MQ = window.matchMedia("(min-width: 900px)");
@@ -52,11 +101,25 @@ function applyLayout() {
 function cycleLayout() {
   layoutPref = { auto: "pc", pc: "mobile", mobile: "auto" }[layoutPref];
   lsSet("layout", layoutPref);
-  document.body.classList.remove("sheet-open", "filters-open");
+  document.body.classList.remove("sheet-open", "sheet-mid", "filters-open");
   applyLayout();
 }
 
 WIDE_MQ.addEventListener("change", () => { if (layoutPref === "auto") applyLayout(); });
+
+// ------------------------------------------------------- 3-state bottom sheet
+// peek -> mid -> open -> peek
+function cycleSheet() {
+  const b = document.body;
+  if (b.classList.contains("sheet-open")) {
+    b.classList.remove("sheet-open", "sheet-mid");
+  } else if (b.classList.contains("sheet-mid")) {
+    b.classList.remove("sheet-mid");
+    b.classList.add("sheet-open");
+  } else {
+    b.classList.add("sheet-mid");
+  }
+}
 
 // ---------------------------------------------------------------- map theme
 function loadMapTheme() {
@@ -108,6 +171,20 @@ function ageStr(min) {
 function esc(s) {
   return (s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
+function haversineKm(a, b) {
+  const R = 6371, r = Math.PI / 180;
+  const dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+function threatSpeed(slug) {
+  const tt = (CFG.threats || []).find((x) => x.slug === slug);
+  return (tt && tt.speed_kmh) || 200;
+}
+function clusterConfidence(c) {
+  return Math.max(0, ...(c.sources || []).map((s) => s.confidence || 0));
+}
 
 // ---------------------------------------------------------------- boot
 async function init() {
@@ -125,9 +202,14 @@ async function init() {
     state.area = (savedArea && CFG.areas.some((a) => a.key === savedArea)) || savedArea === "all"
       ? savedArea : CFG.default_area;
 
+    const savedHere = lsGet("here");
+    if (savedHere) { try { state.here = JSON.parse(savedHere); } catch (_) {} }
+
+    applyI18n();
     buildAreas();
     buildThreatChips();
     buildChannelChips();
+    buildLegend();
 
     const a = CFG.areas.find((x) => x.key === state.area) || CFG.areas[0];
     const center = a.center ||
@@ -137,7 +219,9 @@ async function init() {
     map = L.map("map", { zoomControl: true })
       .setView(center, a.radius_km && a.radius_km < 150 ? 8 : 6);
     layer.addTo(map);
+    fxLayer.addTo(map);
     applyMapTheme(loadMapTheme());
+    if (state.here) drawHere();
     applyLayout();                    // again, now that map exists (invalidateSize)
     wire();
   }
@@ -156,24 +240,48 @@ function buildAreas() {
     sel.appendChild(o);
   }
   const all = document.createElement("option");
-  all.value = "all"; all.textContent = "Everything";
+  all.value = "all"; all.textContent = lang === "uk" ? "Уся Україна" : "Everything";
   sel.appendChild(all);
 }
 
+// threat chips, grouped by family (drone / cruise / ballistic / bomb / …)
 function buildThreatChips() {
   const box = $("#threats");
   box.innerHTML = "";
-  for (const t of CFG.threats) {
-    const el = document.createElement("label");
-    el.className = "chip";
-    el.innerHTML = `<span class="dot" style="background:${t.color}"></span>${esc(t.short || t.label)}`;
-    el.title = t.label;
-    el.addEventListener("click", () => {
-      state.threatsOff.has(t.slug) ? state.threatsOff.delete(t.slug) : state.threatsOff.add(t.slug);
-      el.classList.toggle("off");
+  const byFam = {};
+  for (const th of CFG.threats) (byFam[th.family] ||= []).push(th);
+
+  for (const [fam, list] of Object.entries(byFam)) {
+    const g = document.createElement("div");
+    g.className = "chip-group";
+    const lbl = document.createElement("button");
+    lbl.className = "chip-group-label";
+    lbl.type = "button";
+    lbl.textContent = fam;
+    // one click on the family label toggles every slug in it
+    lbl.addEventListener("click", () => {
+      const slugs = list.map((x) => x.slug);
+      const anyOn = slugs.some((s) => !state.threatsOff.has(s));
+      slugs.forEach((s) => anyOn ? state.threatsOff.add(s) : state.threatsOff.delete(s));
+      buildThreatChips();
       loadClusters();
     });
-    box.appendChild(el);
+    g.appendChild(lbl);
+
+    for (const th of list) {
+      const el = document.createElement("label");
+      el.className = "chip" + (state.threatsOff.has(th.slug) ? " off" : "");
+      el.innerHTML = `<span class="dot" style="background:${th.color}"></span>${esc(th.short || th.label)}`;
+      el.title = th.label;
+      el.addEventListener("click", () => {
+        state.threatsOff.has(th.slug)
+          ? state.threatsOff.delete(th.slug) : state.threatsOff.add(th.slug);
+        el.classList.toggle("off");
+        loadClusters();
+      });
+      g.appendChild(el);
+    }
+    box.appendChild(g);
   }
 }
 
@@ -194,15 +302,27 @@ function buildChannelChips() {
   }
 }
 
+// static colour key, grouped by family; lives in the filters drawer
+function buildLegend() {
+  const box = $("#legend");
+  if (!box) return;
+  const byFam = {};
+  for (const th of CFG.threats) (byFam[th.family] ||= []).push(th);
+  box.innerHTML = Object.entries(byFam).map(([fam, list]) =>
+    `<div class="lg-fam">${esc(fam)}</div>` +
+    list.map((th) =>
+      `<div class="lg-row"><span class="dot" style="background:${th.color}"></span>${esc(th.label)}</div>`
+    ).join("")
+  ).join("");
+}
+
 function closeDrawer() { document.body.classList.remove("filters-open"); }
 
 function wire() {
   $("#filtersToggle").addEventListener("click", () => {
     document.body.classList.toggle("filters-open");
   });
-  $("#sheetHandle").addEventListener("click", () => {
-    document.body.classList.toggle("sheet-open");
-  });
+  $("#sheetHandle").addEventListener("click", cycleSheet);
 
   $("#area").addEventListener("change", (e) => {
     state.area = e.target.value;
@@ -221,7 +341,7 @@ function wire() {
   });
   $("#scrub").addEventListener("input", (e) => {
     state.asOf = e.target.value / 100;
-    $("#scrubLabel").textContent = state.asOf >= 0.999 ? "now" : fmtClock(asOfDate());
+    $("#scrubLabel").textContent = state.asOf >= 0.999 ? t("now") : fmtClock(asOfDate());
     renderClusters();
   });
   $("#live").addEventListener("change", (e) => { state.live = e.target.checked; startTimer(); });
@@ -234,18 +354,81 @@ function wire() {
     applyMapTheme(state.mapTheme === "dark" ? "light" : "dark");
   });
   $("#layout").addEventListener("click", cycleLayout);
+  $("#lang").addEventListener("click", () => {
+    lang = lang === "uk" ? "en" : "uk";
+    lsSet("lang", lang);
+    applyI18n(); buildAreas(); buildLegend();
+    renderClusters(); renderMessages(lastMsgs); updateFreshness();
+  });
+  $("#sound").addEventListener("click", () => {
+    const on = lsGet("sound") !== "off";
+    lsSet("sound", on ? "off" : "on");
+    $("#sound").textContent = on ? "🔇" : "🔔";
+    if (!on) beep();                       // confirm un-mute audibly
+  });
+  $("#sound").textContent = lsGet("sound") === "off" ? "🔇" : "🔔";
+  $("#geo").addEventListener("click", locateMe);
+
   let deb;
   $("#search").addEventListener("input", (e) => {
     clearTimeout(deb);
     deb = setTimeout(() => { state.q = e.target.value.trim(); loadMessages(); }, 300);
   });
+
+  map.on("popupclose", () => { if (state.pinned) { state.pinned = null; markPinned(); } });
 }
 
 function startTimer() {
   if (timer) clearInterval(timer);
   if (!state.live) { setStatus("paused"); return; }
   const every = Math.max(20, CFG.poll_interval || 60) * 1000;
-  timer = setInterval(refresh, every);
+  timer = setInterval(() => { refresh(); updateFreshness(); }, every);
+  // keep the "updated Ns ago" text honest between polls
+  setInterval(updateFreshness, 5000);
+}
+
+// ---------------------------------------------------------------- my location
+function locateMe() {
+  if (!navigator.geolocation) return;
+  const b = $("#geo");
+  b.classList.add("busy"); b.title = t("locating");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      state.here = { lat: +pos.coords.latitude.toFixed(4), lon: +pos.coords.longitude.toFixed(4) };
+      lsSet("here", JSON.stringify(state.here));
+      b.classList.remove("busy"); b.classList.add("on");
+      drawHere();
+      map.flyTo([state.here.lat, state.here.lon], Math.max(map.getZoom(), 9), { duration: 0.6 });
+      renderClusters();
+    },
+    () => { b.classList.remove("busy"); b.title = t("myloc"); },
+    { enableHighAccuracy: false, timeout: 8000, maximumAge: 6e5 }
+  );
+}
+
+function drawHere() {
+  if (hereMarker) { map.removeLayer(hereMarker); hereMarker = null; }
+  if (!state.here) return;
+  hereMarker = L.marker([state.here.lat, state.here.lon], {
+    icon: L.divIcon({ className: "here-pin", html: "📍", iconSize: [24, 24], iconAnchor: [12, 22] }),
+    title: t("locpin"), interactive: false, keyboard: false,
+  }).addTo(map);
+}
+
+// ---------------------------------------------------------------- sound
+function beep() {
+  if (lsGet("sound") === "off") return;
+  try {
+    audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = "sine"; o.frequency.value = 880;
+    g.gain.value = 0.0001;
+    o.connect(g); g.connect(audioCtx.destination);
+    const n = audioCtx.currentTime;
+    g.gain.exponentialRampToValueAtTime(0.15, n + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, n + 0.35);
+    o.start(n); o.stop(n + 0.36);
+  } catch (_) {}
 }
 
 // ---------------------------------------------------------------- data
@@ -257,15 +440,19 @@ async function loadClusters() {
   const p = new URLSearchParams();
   p.set("area", state.area);
   p.set("since", "-" + state.window);
-  const on = CFG.threats.map((t) => t.slug).filter((s) => !state.threatsOff.has(s));
+  const on = CFG.threats.map((th) => th.slug).filter((s) => !state.threatsOff.has(s));
   if (on.length && on.length !== CFG.threats.length) p.set("threats", on.join(","));
   try {
     const resp = await fetch("api/clusters?" + p);
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
+    const prev = clusters;
     clusters = data.clusters || [];
+    detectNew(prev);
+    state.lastUpdate = Date.now();
     renderClusters();
-    setStatus(`${clusters.length} tracks · updated ${fmtClock(new Date())}`);
+    updateFreshness();
+    setStatus(`${clusters.length} ${t("tracks")} · ${t("updated")} ${fmtClock(new Date())}`);
   } catch (e) {
     // almost always: the local server isn't running / restarting
     const why = /Failed to fetch|NetworkError|Load failed/.test(String(e))
@@ -284,8 +471,43 @@ async function loadMessages() {
   p.set("limit", "250");
   try {
     const data = await (await fetch("api/messages?" + p)).json();
-    renderMessages(data.messages || []);
+    lastMsgs = data.messages || [];
+    renderMessages(lastMsgs);
   } catch (e) { /* keep old list */ }
+}
+
+// new clusters since the previous poll -> pulse on the map + a soft beep
+function detectNew(prev) {
+  if (seenIds === null) {                 // first load: prime, don't alert
+    seenIds = new Set(clusters.map((c) => c.id));
+    return;
+  }
+  const fresh = clusters.filter((c) => !seenIds.has(c.id) && c.lat != null);
+  for (const c of clusters) seenIds.add(c.id);
+  if (!fresh.length || !state.live || state.asOf < 0.999) return;
+
+  let flashed = false;
+  for (const c of fresh) {
+    pulse(c.lat, c.lon, c.color);
+    flashed = true;
+  }
+  if (flashed) {
+    beep();
+    document.body.classList.add("flash");
+    setTimeout(() => document.body.classList.remove("flash"), 900);
+  }
+}
+
+function pulse(lat, lon, color) {
+  const ring = L.circleMarker([lat, lon], {
+    radius: 8, color, weight: 3, opacity: 0.9, fill: false,
+  }).addTo(fxLayer);
+  let r = 8, op = 0.9;
+  const iv = setInterval(() => {
+    r += 4; op -= 0.09;
+    if (op <= 0) { clearInterval(iv); fxLayer.removeLayer(ring); return; }
+    ring.setRadius(r); ring.setStyle({ opacity: op });
+  }, 60);
 }
 
 // ---------------------------------------------------------------- render: map
@@ -301,7 +523,10 @@ function renderClusters() {
     if (offCh.size && c.channels.every((ch) => offCh.has(ch))) continue;
 
     const age = Math.max(0, (cutoff - new Date(c.last_posted_at).getTime()) / 60000);
-    const op = Math.max(0.25, 1 - age / winMin);
+    let op = Math.max(0.25, 1 - age / winMin);
+    // dim uncertain parses: full opacity at conf>=0.8, ~0.45x at conf 0
+    const conf = clusterConfidence(c);
+    op *= 0.45 + 0.55 * Math.min(1, conf / 0.8);
     // size by the reported group size, falling back to number of reports
     const size = Math.max(c.count || 0, c.event_count || 1);
     const r = 7 + Math.min(16, (size - 1) * 3);
@@ -343,6 +568,7 @@ function renderClusters() {
       radius: r, color: c.color, weight: 2, opacity: op,
       fillColor: c.color, fillOpacity: 0.5 * op,
     }).bindPopup(popupHtml(c), { maxWidth: 320 });
+    m.on("click", () => { state.pinned = c.id; markPinned(c); });
     if (badge) {
       m.bindTooltip(badge, {
         permanent: true, direction: "center", className: "count-badge",
@@ -350,26 +576,39 @@ function renderClusters() {
     }
     m.addTo(layer);
   }
+  markPinned();
 }
 
 function popupHtml(c) {
   const obs = c.heading_observed ? " · observed" : "";
   const dst = c.dest_name
     ? `<div class="pp-row">→ <b>${esc(c.dest_name)}</b>${c.compass ? " (" + c.compass + obs + ")" : ""}</div>`
-    : (c.compass ? `<div class="pp-row">heading ${c.compass}${obs}</div>` : "");
+    : (c.compass ? `<div class="pp-row">${t("heading")} ${c.compass}${obs}</div>` : "");
   const src = (c.sources || []).map((s) =>
     `<div>${esc(s.channel)} · <a href="${esc(s.url)}" target="_blank" rel="noopener">${fmtClock(new Date(s.posted_at))}</a>${s.count ? " · " + s.count + "×" : ""}${s.line ? " — " + esc(s.line) : ""}</div>`
   ).join("");
   const size = c.count != null
-    ? `<b>${c.count}</b> ${c.threat_type === "shahed" || c.threat_type === "jet_uav" ? "drone" : "unit"}${c.count === 1 ? "" : "s"}`
-      + (c.count_max && c.count_max > c.count ? ` (peak ${c.count_max})` : "")
+    ? `<b>${c.count}</b> ${c.threat_type === "shahed" || c.threat_type === "jet_uav" ? t("drone") : t("unit")}${c.count === 1 ? "" : "s"}`
+      + (c.count_max && c.count_max > c.count ? ` (${t("peak")} ${c.count_max})` : "")
     : "";
-  const reports = c.event_count > 1 ? `${c.event_count} reports` : "";
-  const line2 = [size, esc(c.status), reports].filter(Boolean).join(" · ");
+  const reports = c.event_count > 1 ? `${c.event_count} ${t("reports")}` : "";
+  const conf = clusterConfidence(c);
+  const confStr = conf ? ` · ${Math.round(conf * 100)}%` : "";
+  const line2 = [size, esc(c.status), reports].filter(Boolean).join(" · ") + confStr;
+
+  let hereRow = "";
+  if (state.here) {
+    const d = haversineKm([state.here.lat, state.here.lon], [c.lat, c.lon]);
+    const etaMin = (d / threatSpeed(c.threat_type)) * 60;
+    hereRow = `<div class="pp-row pp-here">📍 ${d.toFixed(0)} km ${t("away")}` +
+      (c.dest_name || c.heading_deg != null ? ` · ${t("eta")} ~${etaMin < 1 ? "<1" : Math.round(etaMin)} min` : "") +
+      `</div>`;
+  }
   return `<div class="pp-h" style="color:${c.color}">${esc(c.threat_label)}</div>
     <div class="pp-row"><b>${esc(c.place_name || "—")}</b></div>
     <div class="pp-row">${line2}</div>
     ${dst}
+    ${hereRow}
     <div class="pp-row" style="color:#666">${esc((c.channels || []).join(", "))} · ${ageStr(c.age_minutes)}</div>
     <div class="pp-src">${src}</div>`;
 }
@@ -388,8 +627,21 @@ function destPoint(lat, lon, bearing, km) {
 function showMessageOnMap(m) {
   const loc = (m.events || []).find((e) => e.lat != null && e.lon != null);
   if (!loc) return;
-  if (isMobile()) document.body.classList.remove("sheet-open");
+  if (isMobile()) document.body.classList.remove("sheet-open", "sheet-mid");
   map.flyTo([loc.lat, loc.lon], Math.max(map.getZoom(), 10), { duration: 0.6 });
+}
+
+// highlight the feed rows that belong to a clicked map marker, and reveal them
+function markPinned(c) {
+  const urls = c ? new Set((c.sources || []).map((s) => s.url)) : null;
+  $$("#msgs .msg").forEach((li) => {
+    li.classList.toggle("pinned", !!urls && urls.has(li.dataset.url));
+  });
+  if (!c) return;
+  if (isMobile() && !document.body.classList.contains("sheet-open"))
+    document.body.classList.add("sheet-mid");
+  const first = $("#msgs .msg.pinned");
+  if (first) first.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 // ---------------------------------------------------------------- render: stream
@@ -400,6 +652,7 @@ function renderMessages(msgs) {
   for (const m of msgs) {
     const li = document.createElement("li");
     li.className = "msg";
+    li.dataset.url = m.url;
     const ageMin = (now - new Date(m.posted_at).getTime()) / 60000;
     if (ageMin < 10) li.classList.add("hot");
     const located = (m.events || []).some((e) => e.lat != null);
@@ -421,18 +674,64 @@ function renderMessages(msgs) {
     ul.appendChild(li);
   }
 
+  drawTimeline(msgs);
+  if (state.pinned) {
+    const c = clusters.find((x) => x.id === state.pinned);
+    markPinned(c);
+  }
+
   // bottom-sheet peek summary
   const hot = msgs.filter((m) => (now - new Date(m.posted_at).getTime()) / 60000 < 15).length;
   const latest = msgs[0];
   const sum = $("#sheetSummary");
   if (sum) {
     sum.textContent = latest
-      ? `${msgs.length} in feed${hot ? " · " + hot + " new" : ""} — ${latest.channel}: ${latest.text.slice(0, 46)}`
-      : "Feed";
+      ? `${msgs.length} ${t("inFeed")}${hot ? " · " + hot + " " + t("new") : ""} — ${latest.channel}: ${latest.text.slice(0, 46)}`
+      : t("feed");
   }
 }
 
+// tiny activity sparkline: message volume across the feed window
+function drawTimeline(msgs) {
+  const el = $("#timeline");
+  if (!el) return;
+  const N = 40;
+  const now = Date.now();
+  const span = Math.max(windowMs(), 6 * 36e5);
+  const buckets = new Array(N).fill(0);
+  for (const m of msgs) {
+    const age = now - new Date(m.posted_at).getTime();
+    if (age < 0 || age > span) continue;
+    const i = Math.min(N - 1, Math.floor(((span - age) / span) * N));
+    buckets[i]++;
+  }
+  const max = Math.max(1, ...buckets);
+  const W = 240, H = 30, bw = W / N;
+  const bars = buckets.map((v, i) => {
+    const h = Math.max(v ? 2 : 0, (v / max) * H);
+    return `<rect x="${(i * bw).toFixed(1)}" y="${(H - h).toFixed(1)}" width="${(bw - 1).toFixed(1)}" height="${h.toFixed(1)}"/>`;
+  }).join("");
+  el.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${bars}</svg>`;
+}
+
 function setStatus(s) { $("#status").textContent = s; }
+
+// prominent "how fresh is this" pill
+function updateFreshness() {
+  const el = $("#freshness");
+  if (!el) return;
+  if (!state.lastUpdate) { el.textContent = ""; el.className = "freshness"; return; }
+  const s = Math.round((Date.now() - state.lastUpdate) / 1000);
+  const poll = Math.max(20, CFG.poll_interval || 60);
+  let cls = "freshness ok", txt;
+  if (s < 90) txt = `${t("updated")} ${s}s ${lang === "uk" ? "тому" : "ago"}`;
+  else txt = `${t("stale")} ${s < 3600 ? Math.round(s / 60) + "m" : (s / 3600).toFixed(1) + "h"}`;
+  if (s > poll * 2) cls = "freshness warn";
+  if (s > poll * 4) cls = "freshness bad";
+  el.textContent = txt;
+  el.className = cls;
+}
 
 // ---------------------------------------------------------------- boot loop
 function banner(msg) {
@@ -450,18 +749,16 @@ async function boot() {
   let tries = 0;
   for (;;) {
     try {
-      banner("Connecting to the DroneVisualizer server…");
+      banner(t("connecting"));
       await init();
       banner(null);
       return;
     } catch (e) {
       tries++;
       banner(
-        "Can't reach the DroneVisualizer server on this address.\n" +
-        "Start it with:  python -m dronevis run   — then this page reconnects automatically.\n" +
-        "(retry " + tries + "…)"
+        t("cantReach") + "\n" + t("startWith") + "\n(" + t("retry") + " " + tries + "…)"
       );
-      setStatus("server offline");
+      setStatus(t("offline"));
       await new Promise((r) => setTimeout(r, 4000));
     }
   }

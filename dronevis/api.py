@@ -26,7 +26,7 @@ from .db import Database
 from .geo.util import bearing_deg, compass, haversine_km
 from .ha import HAPublisher, compute_state
 from .log import get_logger, setup_logging
-from .parse.threats import ALL_SLUGS, COLOR, FAMILY, LABEL, SHORT
+from .parse.threats import ALL_SLUGS, COLOR, FAMILY, LABEL, SHORT, SPEED_KMH
 from .service import Service
 
 log = get_logger("api")
@@ -123,7 +123,8 @@ def create_app(cfg: Config | None = None):
             "channels": cfg.sources.channels,
             "threats": [
                 {"slug": s, "label": LABEL[s], "short": SHORT.get(s, LABEL[s]),
-                 "color": COLOR[s], "family": FAMILY[s]}
+                 "color": COLOR[s], "family": FAMILY[s],
+                 "speed_kmh": cfg.dedupe.speed_kmh.get(s, SPEED_KMH.get(s))}
                 for s in ALL_SLUGS
             ],
             "tile_url": cfg.server.tile_url,

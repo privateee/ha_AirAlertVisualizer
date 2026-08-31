@@ -17,15 +17,15 @@
 </head>
 <body>
   <header id="bar">
-    <div class="brand">🛰️ <span>DroneVisualizer</span></div>
+    <div class="brand">🛰️ <span data-i18n="brand">DroneVisualizer</span></div>
 
     <button id="filtersToggle" class="icon-btn" aria-label="Filters" title="Filters">☰</button>
 
     <div id="filters">
-      <label>Area
+      <label><span data-i18n="area">Area</span>
         <select id="area"></select>
       </label>
-      <label>Window
+      <label><span data-i18n="window">Window</span>
         <select id="window">
           <option value="5m">5 min</option>
           <option value="15m">15 min</option>
@@ -40,11 +40,19 @@
         </select>
       </label>
       <div id="threats" class="chips"></div>
+      <details id="legendBox">
+        <summary data-i18n="legend">Legend</summary>
+        <div id="legend"></div>
+      </details>
     </div>
 
     <div class="bar-actions">
-      <label class="live"><input type="checkbox" id="live" checked /> Live</label>
-      <button id="ingestBtn" title="Fetch new posts now">Fetch</button>
+      <span id="freshness" class="freshness"></span>
+      <label class="live"><input type="checkbox" id="live" checked /> <span data-i18n="live">Live</span></label>
+      <button id="ingestBtn" data-i18n="fetch" title="Fetch new posts now">Fetch</button>
+      <button id="geo" class="icon-btn" title="My location">📍</button>
+      <button id="sound" class="icon-btn" title="Alert sound">🔔</button>
+      <button id="lang" class="icon-btn" title="Language">EN</button>
       <button id="layout" class="icon-btn" title="Layout: auto / desktop / mobile">🖥️</button>
       <button id="theme" class="icon-btn" title="Toggle map theme">🌙</button>
     </div>
@@ -66,8 +74,9 @@
         <span id="sheetSummary">Feed</span>
       </button>
       <div class="stream-head">
+        <div id="timeline" aria-hidden="true"></div>
         <div id="channels" class="chips"></div>
-        <input type="search" id="search" placeholder="filter text…" />
+        <input type="search" id="search" data-i18n-ph="filterText" placeholder="filter text…" />
       </div>
       <ul id="msgs"></ul>
     </aside>
