@@ -3,7 +3,7 @@ FROM ${BUILD_FROM}
 
 # point these at your fork if you fork the repo (also set in build.yaml)
 ARG DRONEVIS_REPO=https://github.com/privateee/ha_AirAlertVisualizer
-ARG DRONEVIS_REF=v0.1.5
+ARG DRONEVIS_REF=v0.9.0
 
 ENV LANG=C.UTF-8 PYTHONUNBUFFERED=1 PYTHONUTF8=1
 
