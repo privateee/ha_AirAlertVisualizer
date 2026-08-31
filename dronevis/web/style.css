@@ -55,7 +55,14 @@ body {
 #bar button:hover { border-color: var(--accent); }
 #bar .icon-btn { padding: 7px 9px; font-size: 15px; line-height: 1; }
 
-.bar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.bar-actions {
+  display: flex; align-items: center; gap: 8px;
+  margin-left: auto; min-width: 0;
+  overflow-x: auto; scrollbar-width: none;
+}
+.bar-actions::-webkit-scrollbar { display: none; }
+.bar-actions > * { flex-shrink: 0; }
+#moreActions { display: flex; gap: 8px; }
 .live { color: var(--text) !important; }
 .status {
   position: absolute;
@@ -101,6 +108,17 @@ body {
 body.filters-open #filters { display: flex; }
 #filters label { flex-direction: column; align-items: stretch; gap: 4px; }
 #filters #threats { flex-wrap: wrap; }
+
+/* ---- keep the top bar on one row on phones (it scrolls if it must) ---- */
+body:not(.is-desktop) #bar { gap: 6px; padding: 8px 10px; }
+body:not(.is-desktop) #freshness {
+  min-width: 34px; text-align: center; padding-inline: 6px;
+}
+@media (max-width: 430px) {
+  body:not(.is-desktop) .live span { display: none; }
+  body:not(.is-desktop) #bar button { padding: 6px 8px; }
+  body:not(.is-desktop) #bar .icon-btn { padding: 6px 7px; font-size: 14px; }
+}
 
 /* ============================================================ layout */
 #main { position: relative; flex: 1 1 auto; min-height: 0; }

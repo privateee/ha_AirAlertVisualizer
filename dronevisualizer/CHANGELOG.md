@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.2
+
+Mobile fixes: the top bar fits a phone again (compact freshness pill, "Live"
+label collapses, `📍 / 🔔 / language` moved into the filters drawer, action
+row scrolls if it must). Tapping the map now lowers a raised feed sheet, and
+opening a marker no longer forces the sheet back open after you close it.
+
 ## 0.9.1
 
 Config cleanup: removed options that only restated Home Assistant defaults

@@ -376,6 +376,17 @@ function wire() {
   });
 
   map.on("popupclose", () => { if (state.pinned) { state.pinned = null; markPinned(); } });
+
+  // tap the map to step the feed sheet back down (open -> mid -> peek), so a
+  // raised sheet is never a dead end on a phone
+  map.on("click", () => {
+    const b = document.body;
+    if (b.classList.contains("sheet-open")) {
+      b.classList.remove("sheet-open"); b.classList.add("sheet-mid");
+    } else if (b.classList.contains("sheet-mid")) {
+      b.classList.remove("sheet-mid");
+    }
+  });
 }
 
 function startTimer() {
@@ -568,7 +579,7 @@ function renderClusters() {
       radius: r, color: c.color, weight: 2, opacity: op,
       fillColor: c.color, fillOpacity: 0.5 * op,
     }).bindPopup(popupHtml(c), { maxWidth: 320 });
-    m.on("click", () => { state.pinned = c.id; markPinned(c); });
+    m.on("click", () => { state.pinned = c.id; markPinned(c, true); });
     if (badge) {
       m.bindTooltip(badge, {
         permanent: true, direction: "center", className: "count-badge",
@@ -631,15 +642,20 @@ function showMessageOnMap(m) {
   map.flyTo([loc.lat, loc.lon], Math.max(map.getZoom(), 10), { duration: 0.6 });
 }
 
-// highlight the feed rows that belong to a clicked map marker, and reveal them
-function markPinned(c) {
+// highlight the feed rows that belong to a clicked map marker, and reveal them.
+// `raise` is only set by a real marker tap - re-applying the highlight after a
+// poll must not shove the sheet back up if the user has since lowered it.
+function markPinned(c, raise = false) {
   const urls = c ? new Set((c.sources || []).map((s) => s.url)) : null;
   $$("#msgs .msg").forEach((li) => {
     li.classList.toggle("pinned", !!urls && urls.has(li.dataset.url));
   });
   if (!c) return;
-  if (isMobile() && !document.body.classList.contains("sheet-open"))
-    document.body.classList.add("sheet-mid");
+  const b = document.body;
+  if (raise && isMobile() &&
+      !b.classList.contains("sheet-mid") && !b.classList.contains("sheet-open")) {
+    b.classList.add("sheet-mid");                    // peek -> mid, once
+  }
   const first = $("#msgs .msg.pinned");
   if (first) first.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
@@ -724,12 +740,18 @@ function updateFreshness() {
   if (!state.lastUpdate) { el.textContent = ""; el.className = "freshness"; return; }
   const s = Math.round((Date.now() - state.lastUpdate) / 1000);
   const poll = Math.max(20, CFG.poll_interval || 60);
-  let cls = "freshness ok", txt;
-  if (s < 90) txt = `${t("updated")} ${s}s ${lang === "uk" ? "тому" : "ago"}`;
-  else txt = `${t("stale")} ${s < 3600 ? Math.round(s / 60) + "m" : (s / 3600).toFixed(1) + "h"}`;
+  const dur = s < 90 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`;
+  const fresh = s < 90;
+  // compact on the phone header (colour carries the meaning); full text elsewhere
+  el.textContent = isMobile()
+    ? dur
+    : fresh ? `${t("updated")} ${dur} ${lang === "uk" ? "тому" : "ago"}`
+            : `${t("stale")} ${dur}`;
+  el.title = fresh ? `${t("updated")} ${dur} ${lang === "uk" ? "тому" : "ago"}`
+                   : `${t("stale")} ${dur}`;
+  let cls = "freshness ok";
   if (s > poll * 2) cls = "freshness warn";
   if (s > poll * 4) cls = "freshness bad";
-  el.textContent = txt;
   el.className = cls;
 }
 

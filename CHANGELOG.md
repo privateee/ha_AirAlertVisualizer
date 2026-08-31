@@ -2,6 +2,20 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.2 — 2026-08-31
+
+Mobile fixes for the 0.9.0 UI additions.
+
+- **Top bar fits a phone again.** The freshness indicator is now a compact
+  pill (`0s` / `2m` / `1.5h`, colour carries the meaning; full text on hover
+  and on desktop), the "Live" label collapses to just its checkbox on narrow
+  screens, and `📍 / 🔔 / language` moved into the filters drawer. The action
+  row also scrolls horizontally as a last resort on very small screens, so it
+  can never overflow the page.
+- **The feed sheet is no longer a dead end.** Tapping the map steps a raised
+  sheet back down (full → half → peek), and opening a marker no longer forces
+  the sheet back up on the next poll after you have lowered it.
+
 ## 0.9.1 — 2026-08-31
 
 - Home Assistant add-on config: drop keys that only restated HA defaults
