@@ -142,5 +142,7 @@ mqtt:
 
 database:
   path: data/dronevis.db
+  retain_days: 14            # drop raw posts / clusters older than this
+  vacuum_days: 7             # run SQLite VACUUM at most this often
 
 log_level: INFO

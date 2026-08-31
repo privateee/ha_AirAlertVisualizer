@@ -172,6 +172,10 @@ class HAPublisher:
         self._lock = threading.Lock()
         self.enabled = self.mc.enabled != "false"
 
+    @property
+    def connected(self) -> bool:
+        return self._connected
+
     # -- broker resolution -------------------------------------------------
     def _broker(self) -> tuple[str, int, str, str] | None:
         if self.mc.host:
@@ -229,6 +233,7 @@ class HAPublisher:
         self._publish_discovery()
 
     def close(self) -> None:
+        self._connected = False
         if self._client:
             try:
                 self._client.publish(f"{self.mc.base_topic}/status", "offline", retain=True)

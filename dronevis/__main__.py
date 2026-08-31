@@ -3,6 +3,7 @@
     python -m dronevis run          start the web UI + background poller
     python -m dronevis ingest       fetch new posts once, then exit
     python -m dronevis reparse      rebuild all events/clusters from raw posts
+                                   (--since-hours N for an incremental window)
     python -m dronevis parse "..."  show how one message is parsed
     python -m dronevis stats        print row counts
 """
@@ -33,8 +34,15 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--port", type=int)
     p_run.add_argument("--reload", action="store_true")
 
-    for name in ("ingest", "reparse", "stats", "ha"):
+    for name in ("ingest", "stats", "ha"):
         _add_config_arg(sub.add_parser(name))
+
+    p_reparse = sub.add_parser("reparse", help="rebuild events/clusters from raw posts")
+    _add_config_arg(p_reparse)
+    p_reparse.add_argument(
+        "--since-hours", type=float, default=None,
+        help="only reparse the last N hours (incremental); default is a full rebuild",
+    )
 
     p_parse = sub.add_parser("parse", help="debug: parse a single message")
     _add_config_arg(p_parse)
@@ -46,7 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     if getattr(args, "config", None):
         os.environ["DRONEVIS_CONFIG"] = args.config
     cfg = load_config(getattr(args, "config", None))
-    setup_logging(cfg.log_level)
+    setup_logging(cfg.log_level, cfg.log_format)
 
     if cmd == "run":
         import uvicorn
@@ -78,7 +86,9 @@ def main(argv: list[str] | None = None) -> int:
 
         svc = Service(cfg)
         try:
-            print(json.dumps(svc.reparse_all(), ensure_ascii=False, indent=2))
+            sh = getattr(args, "since_hours", None)
+            res = svc.reparse_since(sh) if sh and sh > 0 else svc.reparse_all()
+            print(json.dumps(res, ensure_ascii=False, indent=2))
         finally:
             asyncio.run(svc.aclose())
         return 0

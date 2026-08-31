@@ -147,7 +147,10 @@ class Config:
     alarm: AlarmConfig
     mqtt: MQTTConfig
     database_path: Path
+    retain_days: int = 14          # drop raw posts / clusters older than this
+    vacuum_days: int = 7           # full VACUUM cadence
     log_level: str = "INFO"
+    log_format: str = "text"       # text | json (structured one-line-per-record)
 
     @property
     def default_area(self) -> Area:
@@ -306,7 +309,10 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         alarm=alarm,
         mqtt=mqtt,
         database_path=db_path,
+        retain_days=int(db_raw.get("retain_days", 14)),
+        vacuum_days=int(db_raw.get("vacuum_days", 7)),
         log_level=str(raw.get("log_level", "INFO")).upper(),
+        log_format=str(raw.get("log_format", "text")).lower(),
     )
     _apply_env_overrides(cfg)
     return cfg
@@ -336,9 +342,13 @@ def _apply_env_overrides(cfg: Config) -> None:
         cfg.server.map_theme = v.lower()
     if v := e("DRONEVIS_LOG_LEVEL"):
         cfg.log_level = v.upper()
+    if v := e("DRONEVIS_LOG_FORMAT"):
+        cfg.log_format = v.lower()
     if v := e("DRONEVIS_DB_PATH"):
         p = Path(v)
         cfg.database_path = p if p.is_absolute() else Path.cwd() / p
+    if v := e("DRONEVIS_RETAIN_DAYS"):
+        cfg.retain_days = int(v)
 
     if v := e("DRONEVIS_ALARM_THREATS"):
         cfg.alarm.threats = [s.strip() for s in v.split(",") if s.strip()]

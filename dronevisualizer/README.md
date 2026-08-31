@@ -26,7 +26,9 @@ map with the message feed. Opens as a sidebar panel through HA **ingress**
 | `map_theme` | `dark` or `light` (a ☀/🌙 button also toggles it per browser) |
 | `tile_url` | day basemap tiles |
 | `tile_url_dark` | night basemap; leave empty to invert the day tiles with a CSS filter (no extra CDN, works offline) |
+| `retain_days` | drop raw posts / clusters older than this; a VACUUM runs weekly |
 | `log_level` | `debug` / `info` / `warning` / `error` |
+| `log_format` | `text` (default) or `json` — one JSON object per log line for aggregators |
 
 | `alarm_threats` | which threat types raise `binary_sensor.dronevis_alarm`. Slugs (`banderol`, `kalibr`, `x101`, `x22`, `cruise_missile`, `kinzhal`, `iskander`, `ballistic`, `shahed`, `jet_uav`, `recon_uav`, `kab`, `aircraft`) or a family name (`ballistic` → Kinzhal + Iskander + ballistic) |
 | `alarm_min_confidence` | ignore low-confidence parses for the alarm |
@@ -53,6 +55,15 @@ Import `blueprints/automation/dronevis_alert.yaml` for a ready critical-push /
 TTS automation driven by `binary_sensor.dronevis_alarm`.
 
 `GET /api/ha` (inside the ingress panel) returns the same snapshot as JSON.
+
+## Health & maintenance
+
+* `GET /api/health` — status (`ok` / `degraded`), version, last-ingest lag,
+  last error, DB size, row counts, MQTT connection state.
+* `POST /api/reparse` rebuilds every event/cluster from the stored posts;
+  `POST /api/reparse?since_hours=6` rebuilds only the recent window (the map
+  stays populated). Old data is left untouched.
+* Retention pruning + a weekly `VACUUM` run automatically (see `retain_days`).
 
 ## Notes
 

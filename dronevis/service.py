@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from datetime import datetime, timedelta, timezone
 
 from .areas import area_center
 from .config import Config
@@ -31,10 +32,31 @@ class Service:
         # events/clusters at the same time. The poll acquires non-blocking and
         # simply skips a tick if a reparse is in progress; the reparse waits.
         self._writer = threading.Lock()
+        self.last_error: str | None = None
+        self.last_ingest_stats: dict = {}
 
     async def aclose(self) -> None:
         await self.source.aclose()
         self.db.close()
+
+    # -- maintenance -----------------------------------------------------
+    def prune(self) -> dict:
+        """Drop data older than ``retain_days``; VACUUM on the ``vacuum_days``
+        cadence. Holds the writer lock (blocks scheduled ingests briefly)."""
+        with self._writer:
+            cutoff = (datetime.now(timezone.utc)
+                      - timedelta(days=self.cfg.retain_days)).isoformat()
+            removed = self.db.prune(cutoff)
+            last_vac = self.db.get_meta("last_vacuum")
+            due = (not last_vac or
+                   datetime.now(timezone.utc) - datetime.fromisoformat(last_vac)
+                   > timedelta(days=self.cfg.vacuum_days))
+            if due and (removed["raw_messages"] or removed["clusters"] or not last_vac):
+                self.db.vacuum()
+                self.db.set_meta("last_vacuum", utcnow_iso())
+            if removed["raw_messages"] or removed["clusters"]:
+                log.info("pruned %s (retain %dd)", removed, self.cfg.retain_days)
+            return removed
 
     # -- ingestion --------------------------------------------------------
     async def ingest_once(self) -> dict:
@@ -56,7 +78,11 @@ class Service:
                 log.info("ingested %d new post(s): %s",
                          total, {k: v for k, v in stats.items() if v})
             self.db.set_meta("last_ingest", utcnow_iso())
+            self.last_ingest_stats = stats
             return stats
+        except Exception as exc:                       # noqa: BLE001
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            raise
         finally:
             self._writer.release()
 
@@ -107,15 +133,36 @@ class Service:
         """Wipe derived data and re-run the parser over every stored post."""
         with self._writer:                       # block scheduled ingests
             self.db.clear_derived()
-            total_msgs = total_events = 0
-            while True:
-                batch = self.db.unparsed_messages(limit=400)
-                if not batch:
-                    break
-                for r in batch:
-                    total_events += self._parse_and_store(
-                        r["id"], r["channel"], r["text"], r["posted_at"]
-                    )
-                    total_msgs += 1
-            log.info("reparsed %d posts -> %d events", total_msgs, total_events)
-            return {"messages": total_msgs, "events": total_events}
+            return self._drain_unparsed()
+
+    def reparse_since(self, hours: float) -> dict:
+        """Re-run the parser over just the last ``hours`` of posts (plus any
+        older post whose cluster is still active in that window). Leaves older
+        data alone, so the map never goes briefly empty the way a full
+        ``reparse_all`` does."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+        with self._writer:
+            dropped = self.db.reset_derived_since(cutoff)
+            if not dropped["messages"]:
+                log.info("reparse_since(%.1fh): nothing in window", hours)
+                return {"messages": 0, "events": 0, "clusters_dropped": 0}
+            res = self._drain_unparsed()
+            log.info("reparse_since(%.1fh): %d posts -> %d events (dropped %d clusters)",
+                     hours, res["messages"], res["events"], dropped["clusters"])
+            res["clusters_dropped"] = dropped["clusters"]
+            return res
+
+    def _drain_unparsed(self) -> dict:
+        """Parse every raw_message with parsed_at IS NULL. Caller holds the
+        writer lock."""
+        total_msgs = total_events = 0
+        while True:
+            batch = self.db.unparsed_messages(limit=400)
+            if not batch:
+                break
+            for r in batch:
+                total_events += self._parse_and_store(
+                    r["id"], r["channel"], r["text"], r["posted_at"]
+                )
+                total_msgs += 1
+        return {"messages": total_msgs, "events": total_events}

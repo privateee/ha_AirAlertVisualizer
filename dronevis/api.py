@@ -19,6 +19,7 @@ from dateutil import parser as dtp
 from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 
+from . import __version__
 from .areas import cluster_touches_area, in_area, resolve_area
 from .config import Config, load_config
 from .db import Database
@@ -58,7 +59,7 @@ def _csv(value: str | None) -> list[str] | None:
 
 def create_app(cfg: Config | None = None):
     cfg = cfg or load_config()
-    setup_logging(cfg.log_level)
+    setup_logging(cfg.log_level, cfg.log_format)
     service = Service(cfg)
     publisher = HAPublisher(cfg)
 
@@ -71,6 +72,9 @@ def create_app(cfg: Config | None = None):
     async def _poll_and_publish() -> None:
         await service.ingest_once()
         await asyncio.to_thread(_publish_ha)
+
+    async def _prune() -> None:
+        await asyncio.to_thread(service.prune)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -89,6 +93,8 @@ def create_app(cfg: Config | None = None):
         if publisher.enabled:
             scheduler.add_job(_publish_ha, "interval",
                               seconds=cfg.mqtt.publish_interval, id="ha")
+        scheduler.add_job(_prune, "interval", hours=6, id="prune",
+                          next_run_time=datetime.now(timezone.utc) + timedelta(minutes=5))
         scheduler.start()
         log.info("polling every %ss; UI on http://%s:%d",
                  cfg.poll.interval_seconds, cfg.server.host, cfg.server.port)
@@ -99,7 +105,7 @@ def create_app(cfg: Config | None = None):
             publisher.close()
             await service.aclose()
 
-    app = FastAPI(title="DroneVisualizer", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="DroneVisualizer", version=__version__, lifespan=lifespan)
     db: Database = service.db
 
     # -- meta -----------------------------------------------------------
@@ -146,6 +152,37 @@ def create_app(cfg: Config | None = None):
         """The same snapshot published to MQTT - threats in the configured
         area, rollups, alarm state."""
         return compute_state(db, cfg)
+
+    @app.get("/api/health")
+    def api_health():
+        row = db.query_one(
+            "SELECT (SELECT COUNT(*) FROM raw_message) rm, "
+            "(SELECT COUNT(*) FROM event) ev, (SELECT COUNT(*) FROM cluster) cl, "
+            "(SELECT COUNT(*) FROM cluster WHERE resolved_at IS NULL) open_cl"
+        )
+        last = db.get_meta("last_ingest")
+        lag = None
+        if last:
+            try:
+                lag = round((datetime.now(timezone.utc) - dtp.isoparse(last)).total_seconds())
+            except Exception:
+                pass
+        ok = (lag is None or lag < cfg.poll.interval_seconds * 4)
+        return {
+            "status": "ok" if ok else "degraded",
+            "version": app.version,
+            "poll_interval_s": cfg.poll.interval_seconds,
+            "last_ingest": last,
+            "ingest_lag_s": lag,
+            "last_ingest_stats": service.last_ingest_stats,
+            "last_error": service.last_error,
+            "db_bytes": db.size_bytes(),
+            "counts": {"raw_messages": row["rm"], "events": row["ev"],
+                       "clusters": row["cl"], "open_clusters": row["open_cl"]},
+            "mqtt": {"enabled": publisher.enabled, "connected": publisher.connected},
+            "channels": cfg.sources.channels,
+            "retain_days": cfg.retain_days,
+        }
 
     # -- map data --------------------------------------------------------
     @app.get("/api/clusters")
@@ -267,7 +304,11 @@ def create_app(cfg: Config | None = None):
         return {"ingested": await service.ingest_once()}
 
     @app.post("/api/reparse")
-    async def api_reparse():
+    async def api_reparse(since_hours: float | None = None):
+        """Full rebuild by default; pass ``?since_hours=6`` for an incremental
+        reparse of just the recent window (keeps the map populated)."""
+        if since_hours and since_hours > 0:
+            return await asyncio.to_thread(service.reparse_since, since_hours)
         return await asyncio.to_thread(service.reparse_all)
 
     if WEB_DIR.exists():

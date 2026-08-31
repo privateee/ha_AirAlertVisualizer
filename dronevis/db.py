@@ -216,6 +216,77 @@ class Database:
             self._conn.execute("DELETE FROM cluster")
             self._conn.execute("UPDATE raw_message SET parsed_at=NULL")
 
+    def reset_derived_since(self, cutoff_iso: str) -> dict[str, int]:
+        """Incremental reparse support: drop derived data touching the window
+        ``[cutoff, now]`` and mark the affected raw posts unparsed, leaving
+        everything older untouched.
+
+        A cluster that *starts* before the cutoff but is still active in the
+        window is rebuilt in full - every one of its posts is re-queued, not
+        just the recent ones - so trajectory chains don't get truncated at the
+        boundary."""
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT DISTINCT id FROM cluster "
+                "WHERE last_posted_at >= ? OR first_posted_at >= ?",
+                (cutoff_iso, cutoff_iso),
+            )
+            cids = [r["id"] for r in cur.fetchall()]
+
+            msg_ids: set[int] = set()
+            for r in self._conn.execute(
+                "SELECT id FROM raw_message WHERE posted_at >= ?", (cutoff_iso,)
+            ):
+                msg_ids.add(int(r["id"]))
+            if cids:
+                ph = ",".join("?" * len(cids))
+                for r in self._conn.execute(
+                    f"SELECT DISTINCT raw_message_id FROM event "
+                    f"WHERE cluster_id IN ({ph})", cids
+                ):
+                    msg_ids.add(int(r["raw_message_id"]))
+
+            if not msg_ids and not cids:
+                return {"messages": 0, "events": 0, "clusters": 0}
+
+            mph = ",".join("?" * len(msg_ids)) or "NULL"
+            mparams = tuple(msg_ids)
+            n_ev = self._conn.execute(
+                f"DELETE FROM event WHERE raw_message_id IN ({mph})", mparams
+            ).rowcount
+            n_cl = 0
+            if cids:
+                cph = ",".join("?" * len(cids))
+                n_cl = self._conn.execute(
+                    f"DELETE FROM cluster WHERE id IN ({cph})", tuple(cids)
+                ).rowcount
+            self._conn.execute(
+                f"UPDATE raw_message SET parsed_at=NULL WHERE id IN ({mph})", mparams
+            )
+        return {"messages": len(msg_ids), "events": n_ev or 0, "clusters": n_cl or 0}
+
+    def prune(self, cutoff_iso: str) -> dict[str, int]:
+        """Delete posts and clusters older than the cutoff. Events cascade via
+        the FK on raw_message."""
+        with self._lock:
+            r1 = self._conn.execute(
+                "DELETE FROM raw_message WHERE posted_at < ?", (cutoff_iso,)
+            ).rowcount
+            r2 = self._conn.execute(
+                "DELETE FROM cluster WHERE last_posted_at < ?", (cutoff_iso,)
+            ).rowcount
+        return {"raw_messages": r1 or 0, "clusters": r2 or 0}
+
+    def vacuum(self) -> None:
+        with self._lock:
+            self._conn.execute("VACUUM")
+
+    def size_bytes(self) -> int:
+        try:
+            return self.path.stat().st_size
+        except OSError:
+            return 0
+
     # -- event --------------------------------------------------------------
     def insert_event(self, e: dict[str, Any]) -> int:
         cols = (
