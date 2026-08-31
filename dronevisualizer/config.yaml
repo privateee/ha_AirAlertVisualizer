@@ -1,7 +1,7 @@
 name: "DroneVisualizer"
-version: "0.1.3"
+version: "0.1.4"
 slug: "dronevisualizer"
-description: "Ukrainian air-threat Telegram channels on a live map"
+description: "Ukrainian air-threat Telegram channels on a live map + HA sensors"
 url: "https://github.com/privateee/ha_AirAlertVisualizer"
 startup: application
 arch:
@@ -10,6 +10,9 @@ arch:
 init: false
 map:
   - config:rw
+hassio_api: true
+services:
+  - mqtt:want
 ingress: true
 ingress_port: 8099
 ingress_entry: /
@@ -29,6 +32,10 @@ options:
   map_theme: dark
   tile_url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
   tile_url_dark: ""
+  alarm_threats:
+    - ballistic
+  alarm_min_confidence: 0.5
+  mqtt: auto
   log_level: info
 schema:
   channels:
@@ -42,4 +49,8 @@ schema:
   map_theme: list(dark|light)
   tile_url: str
   tile_url_dark: str?
+  alarm_threats:
+    - str
+  alarm_min_confidence: float
+  mqtt: list(auto|true|false)
   log_level: list(debug|info|warning|error)

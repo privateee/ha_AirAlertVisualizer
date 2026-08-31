@@ -23,8 +23,9 @@ from .areas import cluster_touches_area, in_area, resolve_area
 from .config import Config, load_config
 from .db import Database
 from .geo.util import bearing_deg, compass, haversine_km
+from .ha import HAPublisher, compute_state
 from .log import get_logger, setup_logging
-from .parse.threats import COLOR, LABEL, SHORT
+from .parse.threats import ALL_SLUGS, COLOR, FAMILY, LABEL, SHORT
 from .service import Service
 
 log = get_logger("api")
@@ -59,21 +60,35 @@ def create_app(cfg: Config | None = None):
     cfg = cfg or load_config()
     setup_logging(cfg.log_level)
     service = Service(cfg)
+    publisher = HAPublisher(cfg)
+
+    def _publish_ha() -> None:
+        try:
+            publisher.publish(compute_state(service.db, cfg))
+        except Exception as exc:                       # noqa: BLE001
+            log.warning("HA publish failed: %s", exc)
+
+    async def _poll_and_publish() -> None:
+        await service.ingest_once()
+        await asyncio.to_thread(_publish_ha)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if cfg.poll.reparse_on_start:
             await asyncio.to_thread(service.reparse_all)
+        if publisher.start():
+            await asyncio.to_thread(_publish_ha)
+
         scheduler = AsyncIOScheduler(timezone="UTC")
         scheduler.add_job(
-            service.ingest_once,
-            "interval",
+            _poll_and_publish, "interval",
             seconds=cfg.poll.interval_seconds,
             next_run_time=datetime.now(timezone.utc),
-            max_instances=1,
-            coalesce=True,
-            id="poll",
+            max_instances=1, coalesce=True, id="poll",
         )
+        if publisher.enabled:
+            scheduler.add_job(_publish_ha, "interval",
+                              seconds=cfg.mqtt.publish_interval, id="ha")
         scheduler.start()
         log.info("polling every %ss; UI on http://%s:%d",
                  cfg.poll.interval_seconds, cfg.server.host, cfg.server.port)
@@ -81,6 +96,7 @@ def create_app(cfg: Config | None = None):
             yield
         finally:
             scheduler.shutdown(wait=False)
+            publisher.close()
             await service.aclose()
 
     app = FastAPI(title="DroneVisualizer", version="0.1.0", lifespan=lifespan)
@@ -101,8 +117,8 @@ def create_app(cfg: Config | None = None):
             "channels": cfg.sources.channels,
             "threats": [
                 {"slug": s, "label": LABEL[s], "short": SHORT.get(s, LABEL[s]),
-                 "color": COLOR[s]}
-                for s in LABEL
+                 "color": COLOR[s], "family": FAMILY[s]}
+                for s in ALL_SLUGS
             ],
             "tile_url": cfg.server.tile_url,
             "tile_attribution": cfg.server.tile_attribution,
@@ -124,6 +140,12 @@ def create_app(cfg: Config | None = None):
             "raw_messages": row["rm"], "events": row["ev"], "clusters": row["cl"],
             "last_ingest": db.get_meta("last_ingest"),
         }
+
+    @app.get("/api/ha")
+    def api_ha():
+        """The same snapshot published to MQTT - threats in the configured
+        area, rollups, alarm state."""
+        return compute_state(db, cfg)
 
     # -- map data --------------------------------------------------------
     @app.get("/api/clusters")

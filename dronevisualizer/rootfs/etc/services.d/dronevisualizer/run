@@ -16,6 +16,19 @@ export DRONEVIS_TILE_URL_DARK="$(bashio::config 'tile_url_dark' '')"
 [ "${DRONEVIS_TILE_URL_DARK}" = "null" ] && export DRONEVIS_TILE_URL_DARK=""
 export DRONEVIS_LOG_LEVEL="$(bashio::config 'log_level')"
 
+export DRONEVIS_ALARM_THREATS="$(bashio::config 'alarm_threats' | paste -sd, -)"
+export DRONEVIS_ALARM_MIN_CONFIDENCE="$(bashio::config 'alarm_min_confidence')"
+export DRONEVIS_MQTT="$(bashio::config 'mqtt')"
+
+# hand the Supervisor's MQTT broker (Mosquitto add-on) to the app
+if bashio::services.available "mqtt"; then
+  export DRONEVIS_MQTT_HOST="$(bashio::services 'mqtt' 'host')"
+  export DRONEVIS_MQTT_PORT="$(bashio::services 'mqtt' 'port')"
+  export DRONEVIS_MQTT_USERNAME="$(bashio::services 'mqtt' 'username')"
+  export DRONEVIS_MQTT_PASSWORD="$(bashio::services 'mqtt' 'password')"
+  bashio::log.info "MQTT broker: ${DRONEVIS_MQTT_HOST}:${DRONEVIS_MQTT_PORT}"
+fi
+
 mkdir -p /data
 bashio::log.info "DroneVisualizer -> :${DRONEVIS_PORT} (ingress); channels: ${DRONEVIS_CHANNELS}"
 

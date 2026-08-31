@@ -115,6 +115,31 @@ server:
   tile_attribution_dark: "&copy; OpenStreetMap contributors"
   map_theme: dark            # dark | light  (the ☀/🌙 button overrides per browser)
 
+# ---------------------------------------------------------------------------
+# Home Assistant sensors (published via MQTT discovery). See /api/ha for the
+# same snapshot as JSON.
+# ---------------------------------------------------------------------------
+alarm:
+  # which threat types raise binary_sensor.dronevis_alarm. Entries may be a
+  # slug (banderol, kalibr, x101, x22, cruise_missile, kinzhal, iskander,
+  # ballistic, shahed, jet_uav, recon_uav, kab, aircraft, unknown) or a family
+  # name (drone, cruise, ballistic, bomb, aircraft) which expands to all its
+  # slugs - so "ballistic" also alarms Kinzhal and Iskander.
+  threats: [ballistic]
+  min_confidence: 0.5       # ignore low-confidence parses for the alarm
+  in_area_only: true        # a threat counts if its position OR destination is in the area
+  active_minutes: 30        # how long after the last report a threat stays "active"
+
+mqtt:
+  enabled: auto             # auto (use the HA Supervisor's broker if present) | true | false
+  # host: 192.168.1.10      # set for a standalone broker (Docker / bare metal)
+  # port: 1883
+  # username: ""
+  # password: ""
+  discovery_prefix: homeassistant
+  base_topic: dronevis
+  publish_interval: 30
+
 database:
   path: data/dronevis.db
 

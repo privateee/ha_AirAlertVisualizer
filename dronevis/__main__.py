@@ -33,7 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--port", type=int)
     p_run.add_argument("--reload", action="store_true")
 
-    for name in ("ingest", "reparse", "stats"):
+    for name in ("ingest", "reparse", "stats", "ha"):
         _add_config_arg(sub.add_parser(name))
 
     p_parse = sub.add_parser("parse", help="debug: parse a single message")
@@ -93,6 +93,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"raw_messages={row['rm']}  events={row['ev']}  clusters={row['cl']}")
         print(f"last_ingest={db.get_meta('last_ingest')}")
+        db.close()
+        return 0
+
+    if cmd == "ha":
+        from .db import Database
+        from .ha import compute_state
+
+        db = Database(cfg.database_path)
+        print(json.dumps(compute_state(db, cfg), ensure_ascii=False, indent=2))
         db.close()
         return 0
 

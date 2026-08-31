@@ -115,6 +115,28 @@ class ServerConfig:
 
 
 @dataclass(slots=True)
+class AlarmConfig:
+    # threat slugs and/or family names ("ballistic") that raise
+    # binary_sensor.dronevis_alarm
+    threats: list[str] = field(default_factory=lambda: ["ballistic"])
+    min_confidence: float = 0.5
+    in_area_only: bool = True
+    active_minutes: int = 30            # a threat counts as "active" this long
+
+
+@dataclass(slots=True)
+class MQTTConfig:
+    enabled: str = "auto"              # auto | true | false
+    host: str = ""
+    port: int = 1883
+    username: str = ""
+    password: str = ""
+    discovery_prefix: str = "homeassistant"
+    base_topic: str = "dronevis"
+    publish_interval: int = 30         # push state at least this often
+
+
+@dataclass(slots=True)
 class Config:
     sources: SourcesConfig
     poll: PollConfig
@@ -122,6 +144,8 @@ class Config:
     dedupe: DedupeConfig
     parse: ParseConfig
     server: ServerConfig
+    alarm: AlarmConfig
+    mqtt: MQTTConfig
     database_path: Path
     log_level: str = "INFO"
 
@@ -242,6 +266,26 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         map_theme=str(sv.get("map_theme", "dark")).lower(),
     )
 
+    al = raw.get("alarm", {}) or {}
+    alarm = AlarmConfig(
+        threats=list(al.get("threats", ["ballistic"])),
+        min_confidence=float(al.get("min_confidence", 0.5)),
+        in_area_only=bool(al.get("in_area_only", True)),
+        active_minutes=int(al.get("active_minutes", 30)),
+    )
+
+    mq = raw.get("mqtt", {}) or {}
+    mqtt = MQTTConfig(
+        enabled=str(mq.get("enabled", "auto")).lower(),
+        host=mq.get("host", ""),
+        port=int(mq.get("port", 1883)),
+        username=mq.get("username", ""),
+        password=mq.get("password", ""),
+        discovery_prefix=mq.get("discovery_prefix", "homeassistant"),
+        base_topic=mq.get("base_topic", "dronevis"),
+        publish_interval=int(mq.get("publish_interval", 30)),
+    )
+
     # relative DB path -> next to the config file when running from the repo,
     # otherwise the current working directory (so a pip-installed run doesn't
     # try to write inside site-packages). An absolute DRONEVIS_DB_PATH always
@@ -259,6 +303,8 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         dedupe=dedupe,
         parse=parse,
         server=server,
+        alarm=alarm,
+        mqtt=mqtt,
         database_path=db_path,
         log_level=str(raw.get("log_level", "INFO")).upper(),
     )
@@ -293,6 +339,21 @@ def _apply_env_overrides(cfg: Config) -> None:
     if v := e("DRONEVIS_DB_PATH"):
         p = Path(v)
         cfg.database_path = p if p.is_absolute() else Path.cwd() / p
+
+    if v := e("DRONEVIS_ALARM_THREATS"):
+        cfg.alarm.threats = [s.strip() for s in v.split(",") if s.strip()]
+    if v := e("DRONEVIS_ALARM_MIN_CONFIDENCE"):
+        cfg.alarm.min_confidence = float(v)
+    if v := e("DRONEVIS_MQTT"):
+        cfg.mqtt.enabled = v.lower()
+    if v := e("DRONEVIS_MQTT_HOST"):
+        cfg.mqtt.host = v
+    if v := e("DRONEVIS_MQTT_PORT"):
+        cfg.mqtt.port = int(v)
+    if v := e("DRONEVIS_MQTT_USERNAME"):
+        cfg.mqtt.username = v
+    if v := e("DRONEVIS_MQTT_PASSWORD"):
+        cfg.mqtt.password = v
 
     area = cfg.areas.defined.get(cfg.areas.default)
     if area is not None:

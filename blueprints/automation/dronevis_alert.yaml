@@ -1,0 +1,76 @@
+blueprint:
+  name: DroneVisualizer air alarm
+  description: >-
+    Notify (and optionally speak) when `binary_sensor.dronevis_alarm` turns on,
+    repeating while it stays on. The alarm covers the threat types set in the
+    add-on's `alarm.threats` option (default: ballistic).
+  domain: automation
+  source_url: https://github.com/privateee/ha_AirAlertVisualizer/blob/main/blueprints/automation/dronevis_alert.yaml
+  input:
+    alarm_entity:
+      name: Alarm sensor
+      default: binary_sensor.dronevis_alarm
+      selector:
+        entity:
+          domain: binary_sensor
+    notify_target:
+      name: Notify service
+      description: e.g. notify.mobile_app_pixel
+      selector:
+        text:
+    critical:
+      name: Critical push (iOS/Android)
+      default: true
+      selector:
+        boolean:
+    tts_target:
+      name: Media player for TTS (optional)
+      default: ""
+      selector:
+        text:
+    repeat_minutes:
+      name: Repeat every (minutes) while active
+      default: 3
+      selector:
+        number:
+          min: 1
+          max: 30
+          unit_of_measurement: min
+
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: state
+    entity_id: !input alarm_entity
+    to: "on"
+
+action:
+  - repeat:
+      while:
+        - condition: state
+          entity_id: !input alarm_entity
+          state: "on"
+      sequence:
+        - variables:
+            msg: "{{ state_attr(trigger.entity_id, 'message') or 'Air alarm' }}"
+        - service: "{{ notify_target }}"
+          data:
+            title: "🚨 Air alarm"
+            message: "{{ msg }}"
+            data: >
+              {{ {'push': {'sound': {'name': 'default', 'critical': 1, 'volume': 1.0}}}
+                 if critical else {} }}
+        - if:
+            - condition: template
+              value_template: "{{ tts_target | length > 0 }}"
+          then:
+            - service: tts.speak
+              data:
+                cache: false
+                media_player_entity_id: "{{ tts_target }}"
+                message: "{{ msg }}"
+              target:
+                entity_id: tts.piper
+        - delay:
+            minutes: !input repeat_minutes
