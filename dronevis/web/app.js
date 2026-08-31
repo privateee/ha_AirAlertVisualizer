@@ -41,7 +41,7 @@ const I18N = {
   en: {
     brand: "DroneVisualizer", area: "Area", window: "Window", live: "Live",
     fetch: "Fetch", feed: "Feed", filterText: "filter text…", now: "now",
-    legend: "Legend", myloc: "My location", locating: "locating…",
+    threats: "Threats", myloc: "My location", locating: "locating…",
     locpin: "You", inFeed: "in feed", new: "new", tracks: "tracks",
     updated: "updated", stale: "no updates for", offline: "server offline",
     showOnMap: "◎ show on map", reports: "reports", peak: "peak",
@@ -54,7 +54,7 @@ const I18N = {
   uk: {
     brand: "DroneVisualizer", area: "Регіон", window: "Період", live: "Наживо",
     fetch: "Оновити", feed: "Стрічка", filterText: "пошук у тексті…", now: "зараз",
-    legend: "Легенда", myloc: "Моє місце", locating: "визначення…",
+    threats: "Загрози", myloc: "Моє місце", locating: "визначення…",
     locpin: "Ви", inFeed: "у стрічці", new: "нових", tracks: "цілей",
     updated: "оновлено", stale: "немає оновлень", offline: "сервер недоступний",
     showOnMap: "◎ показати на мапі", reports: "повідомлень", peak: "макс",
@@ -205,11 +205,12 @@ async function init() {
     const savedHere = lsGet("here");
     if (savedHere) { try { state.here = JSON.parse(savedHere); } catch (_) {} }
 
+    if (lsGet("threatsOpen") === "0") $("#threatsBox").open = false;
+
     applyI18n();
     buildAreas();
     buildThreatChips();
     buildChannelChips();
-    buildLegend();
 
     const a = CFG.areas.find((x) => x.key === state.area) || CFG.areas[0];
     const center = a.center ||
@@ -302,20 +303,6 @@ function buildChannelChips() {
   }
 }
 
-// static colour key, grouped by family; lives in the filters drawer
-function buildLegend() {
-  const box = $("#legend");
-  if (!box) return;
-  const byFam = {};
-  for (const th of CFG.threats) (byFam[th.family] ||= []).push(th);
-  box.innerHTML = Object.entries(byFam).map(([fam, list]) =>
-    `<div class="lg-fam">${esc(fam)}</div>` +
-    list.map((th) =>
-      `<div class="lg-row"><span class="dot" style="background:${th.color}"></span>${esc(th.label)}</div>`
-    ).join("")
-  ).join("");
-}
-
 function closeDrawer() { document.body.classList.remove("filters-open"); }
 
 function wire() {
@@ -354,10 +341,13 @@ function wire() {
     applyMapTheme(state.mapTheme === "dark" ? "light" : "dark");
   });
   $("#layout").addEventListener("click", cycleLayout);
+  $("#threatsBox").addEventListener("toggle", (e) => {
+    lsSet("threatsOpen", e.target.open ? "1" : "0");
+  });
   $("#lang").addEventListener("click", () => {
     lang = lang === "uk" ? "en" : "uk";
     lsSet("lang", lang);
-    applyI18n(); buildAreas(); buildLegend();
+    applyI18n(); buildAreas();
     renderClusters(); renderMessages(lastMsgs); updateFreshness();
   });
   $("#sound").addEventListener("click", () => {

@@ -39,16 +39,15 @@
           <option value="48h">48 hours</option>
         </select>
       </label>
-      <div id="threats" class="chips"></div>
+      <details id="threatsBox" open>
+        <summary data-i18n="threats">Threats</summary>
+        <div id="threats" class="chips"></div>
+      </details>
       <div id="moreActions">
         <button id="geo" class="icon-btn" title="My location">📍</button>
         <button id="sound" class="icon-btn" title="Alert sound">🔔</button>
         <button id="lang" class="icon-btn" title="Language">EN</button>
       </div>
-      <details id="legendBox">
-        <summary data-i18n="legend">Legend</summary>
-        <div id="legend"></div>
-      </details>
     </div>
 
     <div class="bar-actions">
