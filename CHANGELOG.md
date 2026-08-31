@@ -2,6 +2,19 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.3 — 2026-08-31
+
+- **Legend folded into the threat filter.** The separate Legend panel only
+  repeated the family groups already shown by the threat chips. It is gone;
+  the colour-coded groups now double as the legend, wrapped in a collapsible
+  "Threats" section (open/closed state remembered per browser).
+- **Fixed a timer leak.** Toggling *Live* (or reconnecting after the server
+  restarts) installed an extra "freshness" interval each time. It is now
+  installed once and keeps ticking while *Live* is paused, so the freshness
+  pill still ages to amber/red when polling is off.
+- Minor: the feed-sheet label is localised on first paint; dropped a stray
+  duplicate CSS comment.
+
 ## 0.9.2 — 2026-08-31
 
 Mobile fixes for the 0.9.0 UI additions.

@@ -16,6 +16,7 @@ let hereMarker = null;
 let clusters = [];
 let lastMsgs = [];
 let timer = null;
+let freshBoot = false;                  // freshness ticker installed once
 let seenIds = null;                     // cluster ids seen on a previous poll
 let audioCtx = null;
 
@@ -205,7 +206,8 @@ async function init() {
     const savedHere = lsGet("here");
     if (savedHere) { try { state.here = JSON.parse(savedHere); } catch (_) {} }
 
-    if (lsGet("threatsOpen") === "0") $("#threatsBox").open = false;
+    const tbox = $("#threatsBox");
+    if (tbox && lsGet("threatsOpen") === "0") tbox.open = false;
 
     applyI18n();
     buildAreas();
@@ -341,7 +343,7 @@ function wire() {
     applyMapTheme(state.mapTheme === "dark" ? "light" : "dark");
   });
   $("#layout").addEventListener("click", cycleLayout);
-  $("#threatsBox").addEventListener("toggle", (e) => {
+  $("#threatsBox")?.addEventListener("toggle", (e) => {
     lsSet("threatsOpen", e.target.open ? "1" : "0");
   });
   $("#lang").addEventListener("click", () => {
@@ -380,12 +382,14 @@ function wire() {
 }
 
 function startTimer() {
+  // keep the "updated Ns ago" pill honest between polls - installed once, and
+  // left running when Live is paused so the pill can still go stale/red
+  if (!freshBoot) { setInterval(updateFreshness, 5000); freshBoot = true; }
+
   if (timer) clearInterval(timer);
   if (!state.live) { setStatus("paused"); return; }
   const every = Math.max(20, CFG.poll_interval || 60) * 1000;
   timer = setInterval(() => { refresh(); updateFreshness(); }, every);
-  // keep the "updated Ns ago" text honest between polls
-  setInterval(updateFreshness, 5000);
 }
 
 // ---------------------------------------------------------------- my location

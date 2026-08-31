@@ -311,8 +311,6 @@ body.flash #main::after {
 .chip-group-label:hover { color: var(--accent); }
 
 /* activity sparkline */
-
-/* activity sparkline */
 #timeline { height: 30px; width: 100%; }
 #timeline svg { width: 100%; height: 100%; display: block; }
 #timeline rect { fill: var(--accent); opacity: .55; }

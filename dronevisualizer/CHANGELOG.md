@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.3
+
+The separate Legend panel is gone - the colour-coded threat groups now double
+as the legend, inside a collapsible "Threats" section (remembers its state).
+Fixed a timer leak where toggling *Live* / reconnecting stacked up extra
+"freshness" update intervals.
+
 ## 0.9.2
 
 Mobile fixes: the top bar fits a phone again (compact freshness pill, "Live"
