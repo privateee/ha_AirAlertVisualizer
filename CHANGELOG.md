@@ -2,6 +2,16 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.6 — 2026-08-31
+
+- **Mobile: tapping a map marker no longer also raises the feed.** The marker
+  popup already shows the report text, so shoving the feed sheet up on top of
+  it was redundant. Now a marker tap just opens the popup; tapping the popup
+  ("show in feed →") is what raises the feed and scrolls to that message.
+  Source links in the popup keep opening Telegram as before. Desktop is
+  unchanged — the always-visible feed still scrolls to the message on a
+  marker tap.
+
 ## 0.9.5 — 2026-08-31
 
 - **Add-on icon.** `dronevisualizer/icon.png` (the app's radar mark) now shows

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.6
+
+Mobile: tapping a map marker now just opens the popup - it no longer also
+raises the feed (the popup already shows the text). Tap the popup
+("show in feed →") to jump to that message in the feed.
+
 ## 0.9.5
 
 Added the add-on icon (shows in the store and on the add-on page). Fixed the

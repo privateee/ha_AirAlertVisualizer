@@ -42,7 +42,8 @@ const I18N = {
   en: {
     brand: "DroneVisualizer", area: "Area", window: "Window", live: "Live",
     fetch: "Fetch", feed: "Feed", filterText: "filter text…", now: "now",
-    threats: "Threats", options: "Options", myloc: "My location", locating: "locating…",
+    threats: "Threats", options: "Options", showInFeed: "show in feed →",
+    myloc: "My location", locating: "locating…",
     locpin: "You", inFeed: "in feed", new: "new", tracks: "tracks",
     updated: "updated", stale: "no updates for", offline: "server offline",
     showOnMap: "◎ show on map", reports: "reports", peak: "peak",
@@ -55,7 +56,8 @@ const I18N = {
   uk: {
     brand: "DroneVisualizer", area: "Регіон", window: "Період", live: "Наживо",
     fetch: "Оновити", feed: "Стрічка", filterText: "пошук у тексті…", now: "зараз",
-    threats: "Загрози", options: "Опції", myloc: "Моє місце", locating: "визначення…",
+    threats: "Загрози", options: "Опції", showInFeed: "показати у стрічці →",
+    myloc: "Моє місце", locating: "визначення…",
     locpin: "Ви", inFeed: "у стрічці", new: "нових", tracks: "цілей",
     updated: "оновлено", stale: "немає оновлень", offline: "сервер недоступний",
     showOnMap: "◎ показати на мапі", reports: "повідомлень", peak: "макс",
@@ -562,7 +564,12 @@ function renderClusters() {
       radius: r, color: c.color, weight: 2, opacity: op,
       fillColor: c.color, fillOpacity: 0.5 * op,
     }).bindPopup(popupHtml(c), { maxWidth: 320 });
-    m.on("click", () => { state.pinned = c.id; markPinned(c, true); });
+    // marker tap: show the popup + remember this cluster. On desktop the feed
+    // scrolls to its message right away; on mobile the feed only rises when the
+    // user taps the popup (see wirePopupToFeed) - the popup already shows the
+    // message text, so raising the sheet on top of it would just be redundant.
+    m.on("click", () => { state.pinned = c.id; markPinned(c); });
+    m.on("popupopen", (e) => wirePopupToFeed(e.popup));
     if (badge) {
       m.bindTooltip(badge, {
         permanent: true, direction: "center", className: "count-badge",
@@ -570,7 +577,7 @@ function renderClusters() {
     }
     m.addTo(layer);
   }
-  markPinned();
+  markPinned(clusters.find((x) => x.id === state.pinned) || null);
 }
 
 function popupHtml(c) {
@@ -604,7 +611,8 @@ function popupHtml(c) {
     ${dst}
     ${hereRow}
     <div class="pp-row" style="color:#666">${esc((c.channels || []).join(", "))} · ${ageStr(c.age_minutes)}</div>
-    <div class="pp-src">${src}</div>`;
+    <div class="pp-src">${src}</div>
+    <div class="pp-feedhint">${t("showInFeed")}</div>`;
 }
 
 // small-distance destination point, km -> lat/lon
@@ -625,22 +633,35 @@ function showMessageOnMap(m) {
   map.flyTo([loc.lat, loc.lon], Math.max(map.getZoom(), 10), { duration: 0.6 });
 }
 
-// highlight the feed rows that belong to a clicked map marker, and reveal them.
-// `raise` is only set by a real marker tap - re-applying the highlight after a
-// poll must not shove the sheet back up if the user has since lowered it.
-function markPinned(c, raise = false) {
+// highlight the feed rows that belong to a clicked map marker. On desktop the
+// feed is always visible, so also scroll it to that message; on mobile it stays
+// where it is until the user taps the popup.
+function markPinned(c) {
   const urls = c ? new Set((c.sources || []).map((s) => s.url)) : null;
   $$("#msgs .msg").forEach((li) => {
     li.classList.toggle("pinned", !!urls && urls.has(li.dataset.url));
   });
-  if (!c) return;
-  // a real marker tap raises the sheet once; re-applying the highlight after a
-  // poll must not re-raise it if the user has since closed it
-  if (raise && isMobile() && !document.body.classList.contains("sheet-open")) {
-    openSheet();
-  }
+  if (c && !isMobile()) scrollToPinned();
+}
+
+function scrollToPinned() {
   const first = $("#msgs .msg.pinned");
   if (first) first.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+// tapping a marker's popup (mobile only) raises the feed sheet to its message
+function wirePopupToFeed(popup) {
+  if (!isMobile()) return;
+  const el = popup.getElement() &&
+    popup.getElement().querySelector(".leaflet-popup-content");
+  if (!el || el.dataset.feedWired) return;
+  el.dataset.feedWired = "1";
+  el.classList.add("pp-tap");
+  el.addEventListener("click", (ev) => {
+    if (ev.target.closest("a")) return;      // source links keep their own behaviour
+    openSheet();
+    scrollToPinned();
+  });
 }
 
 // ---------------------------------------------------------------- render: stream

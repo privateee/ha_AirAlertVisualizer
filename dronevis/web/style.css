@@ -228,6 +228,14 @@ body.sheet-open .stream-head { display: flex; }
 .pp-row { color: #333; }
 .pp-src { margin-top: 6px; padding-top: 6px; border-top: 1px solid #ddd; font-size: 12px; max-height: 160px; overflow-y: auto; }
 .pp-src a { color: #0067d6; text-decoration: none; }
+/* on a phone the whole popup is tappable to open that report in the feed */
+.pp-feedhint { display: none; }
+body:not(.is-desktop) .leaflet-popup-content.pp-tap { cursor: pointer; }
+body:not(.is-desktop) .pp-feedhint {
+  display: block; margin-top: 6px; padding-top: 6px;
+  border-top: 1px solid #ddd; font-size: 12px; font-weight: 600; color: #0067d6;
+}
+.map-dark .pp-feedhint { border-top-color: var(--line); color: var(--accent); }
 .leaflet-control-zoom { margin-bottom: 8px !important; }
 
 /* ---- night mode: invert the normal OSM tiles, no external CDN ----
