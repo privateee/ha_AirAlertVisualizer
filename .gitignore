@@ -11,3 +11,4 @@ data/.server.pid
 /config.yaml
 .env
 *.log
+*.zip
