@@ -79,6 +79,14 @@ Run **`Create Desktop Shortcut.bat`** once to drop a `DroneVisualizer`
 icon on your Desktop. (Only `python` needs to be installed; the launcher
 uses `.venv` if it exists, otherwise your system Python.)
 
+### macOS
+
+Double-click **`DroneVisualizer.command`** in Finder. First run it builds a
+private `.venv/`, installs the packages, then starts the server and opens the
+map; later runs start immediately. `Ctrl-C` or closing the Terminal window
+stops it. Full steps (installing Python, Gatekeeper) in
+[`README-macOS.md`](README-macOS.md).
+
 ### Other commands
 
 ```bat
