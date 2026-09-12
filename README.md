@@ -143,7 +143,7 @@ env vars. Highlights:
 | `sources.channels` | channels to read |
 | `sources.backfill_pages` | history depth on first run (~16–20 posts/page) |
 | `poll.interval_seconds` | how often to fetch new posts |
-| `areas.default` / `areas.defined` | map area of interest (circle or bbox); UI filters to it |
+| `areas.default` / `areas.defined` | map area of interest (circle or bbox); UI filters to it. If omitted, a built-in list ships instead - Kyiv + oblast, Dnipro, all 22 other oblasts each with a 180 km "+ nearby" radius reaching into their neighbours, and All Ukraine - so defining your own is optional, not required |
 | `dedupe.time_window_minutes` / `max_span_minutes` / `distance_km` | clustering tightness |
 | `dedupe.trajectory` / `speed_kmh` / `speed_slack` / `heading_tolerance_deg` / `count_tolerance` | trajectory-chaining envelope |
 | `parse.terse_channels` | channels that post bare toponyms with no threat word |

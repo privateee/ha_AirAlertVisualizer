@@ -22,7 +22,7 @@ map with the message feed. Opens as a sidebar panel through HA **ingress**
 | `channels` | Telegram channels to read (public `t.me/s/` preview, no login) |
 | `poll_interval_seconds` | how often to fetch new posts |
 | `backfill_pages` | history depth on first run (~16-20 posts/page) |
-| `area_label` / `area_center_lat` / `area_center_lon` / `area_radius_km` | the map area of interest; the UI filters to it |
+| `area_label` / `area_center_lat` / `area_center_lon` / `area_radius_km` | your own custom area of interest, added to the region picker alongside the built-in list (Kyiv + oblast, Dnipro, every other oblast with a "+ nearby" radius reaching its neighbours, and All Ukraine) - it doesn't replace them, and is skipped entirely if it exactly matches the "Kyiv + oblast" default |
 | `map_theme` | `dark` or `light` (a ☀/🌙 button also toggles it per browser) |
 | `tile_url` | day basemap tiles. Defaults to Stadia Maps with a placeholder key — sign up free at [client.stadiamaps.com/signup](https://client.stadiamaps.com/signup/) and paste your API key over `YOUR_STADIA_API_KEY`. Don't point this at `tile.openstreetmap.org`: it's for casual browser use only and will 403-block the add-on ("Access blocked" tiles) once it sees app-like traffic |
 | `tile_url_dark` | night basemap tiles (same Stadia key); leave empty to CSS-invert the day tiles instead (no second key needed, works offline) |

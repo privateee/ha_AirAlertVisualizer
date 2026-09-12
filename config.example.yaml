@@ -32,6 +32,14 @@ poll:
 # Areas of interest. The UI filters to the "default" area; everything is still
 # stored and can be shown by switching areas or picking "all".
 # A circle (center + radius_km) or a bbox [south, west, north, east].
+#
+# This whole block is what dronevis/config.py falls back to (_DEFAULT_AREAS)
+# when no config file defines its own "areas" at all - which is exactly the
+# Home Assistant add-on's situation (it ships no config.yaml or
+# config.example.yaml). Editing the list below only affects a standalone /
+# Docker run that actually reads this file; to change the add-on's own
+# single extra area, use its area_label/area_center_lat/lon/area_radius_km
+# options instead (added alongside this list, not replacing it).
 # ---------------------------------------------------------------------------
 areas:
   default: kyiv
@@ -44,6 +52,94 @@ areas:
       label: "Dnipro"
       center: [48.4647, 35.0462]
       radius_km: 90
+    cherkasy:
+      label: "Cherkasy + nearby"
+      center: [49.4444, 32.0598]
+      radius_km: 180
+    chernihiv:
+      label: "Chernihiv + nearby"
+      center: [51.4982, 31.2893]
+      radius_km: 180
+    chernivtsi:
+      label: "Chernivtsi + nearby"
+      center: [48.2921, 25.9358]
+      radius_km: 180
+    donetsk:
+      label: "Donetsk + nearby"
+      center: [48.0159, 37.8028]
+      radius_km: 180
+    if:
+      label: "Ivano-Frankivsk + nearby"
+      center: [48.9226, 24.7111]
+      radius_km: 180
+    kharkiv:
+      label: "Kharkiv + nearby"
+      center: [49.9935, 36.2304]
+      radius_km: 180
+    kherson:
+      label: "Kherson + nearby"
+      center: [46.6354, 32.6169]
+      radius_km: 180
+    khmeln:
+      label: "Khmelnytskyi + nearby"
+      center: [49.4229, 26.9871]
+      radius_km: 180
+    kropyv:
+      label: "Kirovohrad + nearby"
+      center: [48.5079, 32.2623]
+      radius_km: 180
+    luhansk:
+      label: "Luhansk + nearby"
+      center: [48.574, 39.3078]
+      radius_km: 180
+    lviv:
+      label: "Lviv + nearby"
+      center: [49.8397, 24.0297]
+      radius_km: 180
+    mykolaiv:
+      label: "Mykolaiv + nearby"
+      center: [46.975, 31.9946]
+      radius_km: 180
+    odesa:
+      label: "Odesa + nearby"
+      center: [46.4825, 30.7233]
+      radius_km: 180
+    poltava:
+      label: "Poltava + nearby"
+      center: [49.5883, 34.5514]
+      radius_km: 180
+    rivne:
+      label: "Rivne + nearby"
+      center: [50.6199, 26.2516]
+      radius_km: 180
+    sumy:
+      label: "Sumy + nearby"
+      center: [50.9077, 34.7981]
+      radius_km: 180
+    ternopil:
+      label: "Ternopil + nearby"
+      center: [49.5535, 25.5948]
+      radius_km: 180
+    vinnytsia:
+      label: "Vinnytsia + nearby"
+      center: [49.2331, 28.4682]
+      radius_km: 180
+    volyn:
+      label: "Volyn + nearby"
+      center: [50.7472, 25.3254]
+      radius_km: 180
+    zakarp:
+      label: "Zakarpattia + nearby"
+      center: [48.6208, 22.2879]
+      radius_km: 180
+    zapor:
+      label: "Zaporizhzhia + nearby"
+      center: [47.8388, 35.1396]
+      radius_km: 180
+    zhytomyr:
+      label: "Zhytomyr + nearby"
+      center: [50.2547, 28.6587]
+      radius_km: 180
     ukraine:
       label: "All Ukraine"
       bbox: [44.0, 22.0, 52.5, 40.3]

@@ -21,6 +21,43 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 _DEFAULT_CHANNELS = ["war_monitor", "AerisRimor", "kpszsu", "vanek_nikolaev"]
 
+# Fallback area list used whenever no config file declares its own
+# ``areas.defined`` - notably the Home Assistant add-on, which ships no
+# config.yaml/config.example.yaml at all (see load_config below) and would
+# otherwise only ever offer "All Ukraine". Kyiv stays first (and so the
+# default) to match the add-on's own factory-default area_* options; the
+# other 22 oblasts (all but Kyiv and Dnipropetrovsk, already covered) get a
+# generous 180 km radius so picking one also covers its immediate neighbours.
+# Centres are the same oblast-capital coordinates dronevis.geo.gazetteer
+# already treats as each oblast's centre.
+_DEFAULT_AREAS: list[tuple[str, str, tuple[float, float] | None, float | None, tuple[float, float, float, float] | None]] = [
+    ("kyiv", "Kyiv + oblast", (50.4501, 30.5234), 130, None),
+    ("dnipro", "Dnipro", (48.4647, 35.0462), 90, None),
+    ("cherkasy", "Cherkasy + nearby", (49.4444, 32.0598), 180, None),
+    ("chernihiv", "Chernihiv + nearby", (51.4982, 31.2893), 180, None),
+    ("chernivtsi", "Chernivtsi + nearby", (48.2921, 25.9358), 180, None),
+    ("donetsk", "Donetsk + nearby", (48.0159, 37.8028), 180, None),
+    ("if", "Ivano-Frankivsk + nearby", (48.9226, 24.7111), 180, None),
+    ("kharkiv", "Kharkiv + nearby", (49.9935, 36.2304), 180, None),
+    ("kherson", "Kherson + nearby", (46.6354, 32.6169), 180, None),
+    ("khmeln", "Khmelnytskyi + nearby", (49.4229, 26.9871), 180, None),
+    ("kropyv", "Kirovohrad + nearby", (48.5079, 32.2623), 180, None),
+    ("luhansk", "Luhansk + nearby", (48.5740, 39.3078), 180, None),
+    ("lviv", "Lviv + nearby", (49.8397, 24.0297), 180, None),
+    ("mykolaiv", "Mykolaiv + nearby", (46.9750, 31.9946), 180, None),
+    ("odesa", "Odesa + nearby", (46.4825, 30.7233), 180, None),
+    ("poltava", "Poltava + nearby", (49.5883, 34.5514), 180, None),
+    ("rivne", "Rivne + nearby", (50.6199, 26.2516), 180, None),
+    ("sumy", "Sumy + nearby", (50.9077, 34.7981), 180, None),
+    ("ternopil", "Ternopil + nearby", (49.5535, 25.5948), 180, None),
+    ("vinnytsia", "Vinnytsia + nearby", (49.2331, 28.4682), 180, None),
+    ("volyn", "Volyn + nearby", (50.7472, 25.3254), 180, None),
+    ("zakarp", "Zakarpattia + nearby", (48.6208, 22.2879), 180, None),
+    ("zapor", "Zaporizhzhia + nearby", (47.8388, 35.1396), 180, None),
+    ("zhytomyr", "Zhytomyr + nearby", (50.2547, 28.6587), 180, None),
+    ("ukraine", "All Ukraine", None, None, (44.0, 22.0, 52.5, 40.3)),
+]
+
 
 @dataclass(slots=True)
 class SourcesConfig:
@@ -226,9 +263,9 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
             bbox=_as_tuple(a.get("bbox")),
         )
     if not defined:
-        defined["ukraine"] = Area(
-            key="ukraine", label="All Ukraine", bbox=(44.0, 22.0, 52.5, 40.3)
-        )
+        for key, label, center, radius_km, bbox in _DEFAULT_AREAS:
+            defined[key] = Area(key=key, label=label, center=center,
+                                radius_km=radius_km, bbox=bbox)
     areas = AreasConfig(
         default=areas_raw.get("default", next(iter(defined))),
         defined=defined,
@@ -380,16 +417,34 @@ def _apply_env_overrides(cfg: Config) -> None:
     if v := e("DRONEVIS_MQTT_PASSWORD"):
         cfg.mqtt.password = v
 
-    area = cfg.areas.defined.get(cfg.areas.default)
-    if area is not None:
-        if v := e("DRONEVIS_AREA_CENTER"):
+    # The HA add-on (and anyone else scripting a single custom area via env
+    # vars) gets its own "custom" entry alongside the standard oblast list,
+    # rather than overwriting whichever preset happened to be the default -
+    # so "Kyiv + oblast" and the other named regions stay selectable even
+    # when the add-on's own area is configured to somewhere else entirely.
+    label_v = e("DRONEVIS_AREA_LABEL")
+    center_v = e("DRONEVIS_AREA_CENTER")
+    radius_v = e("DRONEVIS_AREA_RADIUS_KM")
+    if label_v or center_v or radius_v:
+        base = cfg.areas.defined.get(cfg.areas.default)
+        label = label_v or (base.label if base else "Custom area")
+        center = base.center if base else None
+        if center_v:
             try:
-                lat, lon = (float(x) for x in v.split(","))
-                area.center = (lat, lon)
-                area.bbox = None
+                lat, lon = (float(x) for x in center_v.split(","))
+                center = (lat, lon)
             except ValueError:
                 pass
-        if v := e("DRONEVIS_AREA_RADIUS_KM"):
-            area.radius_km = float(v)
-        if v := e("DRONEVIS_AREA_LABEL"):
-            area.label = v
+        radius_km = (
+            float(radius_v) if radius_v
+            else (base.radius_km if base and base.radius_km else 130.0)
+        )
+        already_present = any(
+            a.label == label and a.center == center and a.radius_km == radius_km
+            for a in cfg.areas.defined.values()
+        )
+        if not already_present:
+            cfg.areas.defined["custom"] = Area(
+                key="custom", label=label, center=center, radius_km=radius_km,
+            )
+            cfg.areas.default = "custom"

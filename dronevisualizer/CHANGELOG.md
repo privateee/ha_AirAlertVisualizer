@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.9
+
+The region picker now offers every Ukrainian oblast, not just Kyiv and
+Dnipro - each as "`<Oblast>` + nearby" with a 180 km radius reaching into
+its neighbours, plus "All Ukraine". Your own `area_label`/`area_center_*`/
+`area_radius_km` option is added alongside this list rather than
+overwriting "Kyiv + oblast", so both stay selectable.
+
 ## 0.9.8
 
 Better parsing of "summary by type" posts (one header line declaring the

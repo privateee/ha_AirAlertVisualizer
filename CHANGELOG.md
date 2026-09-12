@@ -2,6 +2,28 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.9 — 2026-09-12
+
+**Region picker: every oblast, not just Kyiv and Dnipro.** The area dropdown
+now offers all 24 Ukrainian oblasts - Kyiv + oblast and Dnipro as before,
+"All Ukraine", and every other oblast as "`<Oblast>` + nearby" with a 180 km
+radius that reaches into its immediate neighbours (not just the oblast's
+own borders).
+
+- This ships as a **built-in fallback**, so it works for the Home Assistant
+  add-on too: the add-on has no `config.yaml`/`config.example.yaml` in its
+  container at all, so it previously only ever saw "All Ukraine" as an
+  area unless you counted its own single custom one. `config.example.yaml`'s
+  `areas:` block is now exactly what `dronevis/config.py` falls back to
+  when nothing else defines one — editing your own `areas.defined` (in a
+  standalone/Docker `config.yaml`) still fully overrides it as before.
+- The add-on's `area_label`/`area_center_lat/lon`/`area_radius_km` options
+  now add your own area **alongside** the built-in list instead of
+  overwriting the "Kyiv + oblast" preset — so it stays selectable even if
+  you've pointed your own area somewhere else. If your area exactly matches
+  the "Kyiv + oblast" default (i.e. you haven't changed it), nothing extra
+  is added.
+
 ## 0.9.8 — 2026-09-12
 
 Parsing fixes for "summary-by-type" batch posts - one message with a header
