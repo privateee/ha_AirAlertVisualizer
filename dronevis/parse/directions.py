@@ -22,8 +22,8 @@ _MARKERS: list[tuple[str, list[re.Pattern]]] = [
         r"курс\w*\s+(?:на|в|у)\s*$",
         r"(?:у|в)\s+напрям\w*\s*(?:на|до)?\s*$",
         r"напрямок\s*$",
-        r"в\s+б[иі]к\s*$",
-        r"в\s+сторон\w*\s*$",
+        r"[ву]\s+б[иі]к\s*$",
+        r"[ву]\s+сторон\w*\s*$",
         r"рухаетс\w*\s+(?:на|в|у|до)\s*$",
         r"(?:летить|летять|летят|л[еі]тит)\s+(?:на|в|до)\s*$",
         r"(?:прямуе|иде|йде|п[іи]шов|выходит|заходит|зайшов)\s+(?:на|в|до)\s*$",
@@ -113,6 +113,30 @@ def _from_cardinal(folded_line: str) -> float | None:
     return None
 
 
+# "курс західний/южный/..." names the heading directly (unlike "coming from
+# <compass>" above, which is the opposite of the stated point) - so these map
+# straight to the compass bearing, no +180 flip. Intercardinals first so
+# "курс північно-східний" doesn't get caught by the bare "північний" pattern.
+_COURSE_WORD: list[tuple[re.Pattern, float]] = [
+    (re.compile(r"курс\w*\s+п[іи]вн[іи]чно[\s-]*сх[іи]дн\w*|курс\w*\s+сев\w*[\s-]*вост\w*", re.I), 45),
+    (re.compile(r"курс\w*\s+п[іи]вн[іи]чно[\s-]*зах[іи]дн\w*|курс\w*\s+сев\w*[\s-]*запад\w*", re.I), 315),
+    (re.compile(r"курс\w*\s+п[іи]вденно[\s-]*сх[іи]дн\w*|курс\w*\s+юго[\s-]*вост\w*", re.I), 135),
+    (re.compile(r"курс\w*\s+п[іи]вденно[\s-]*зах[іи]дн\w*|курс\w*\s+юго[\s-]*запад\w*", re.I), 225),
+    (re.compile(r"курс\w*\s+п[іи]вн[іи]чн\w*|курс\w*\s+север\w*", re.I), 0),
+    (re.compile(r"курс\w*\s+п[іи]вденн\w*|курс\w*\s+южн\w*", re.I), 180),
+    (re.compile(r"курс\w*\s+сх[іи]дн\w*|курс\w*\s+восточ\w*", re.I), 90),
+    (re.compile(r"курс\w*\s+зах[іи]дн\w*|курс\w*\s+запад\w*", re.I), 270),
+]
+
+
+def _from_course_word(folded_line: str) -> float | None:
+    """Heading from a bare 'курс <cardinal adjective>' statement, or None."""
+    for rx, deg in _COURSE_WORD:
+        if rx.search(folded_line):
+            return deg
+    return None
+
+
 def _is_region(hit: PlaceHit | None) -> bool:
     return bool(hit) and hit.text.strip().endswith(_REGION_SUFFIX)
 
@@ -191,6 +215,8 @@ def analyze(folded_line: str, hits: list[PlaceHit]) -> DirectionResult:
     if len(chain) >= 2:
         heading = bearing_deg(chain[-2].place.coord, chain[-1].place.coord)
     cardinal = _from_cardinal(folded_line)
+    if cardinal is None:
+        cardinal = _from_course_word(folded_line)
     if cardinal is not None:
         heading = cardinal
 

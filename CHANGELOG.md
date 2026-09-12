@@ -2,6 +2,38 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.8 — 2026-09-12
+
+Parsing fixes for "summary-by-type" batch posts - one message with a header
+declaring the threat type ("Загальна по мопедам:" / "Общая по мопедам:")
+followed by many lines, one group per line, most with no threat word of
+their own. A real 14-line report like this was only producing 7-8 correct
+events before; now all of them come through correctly, in **both Ukrainian
+and Russian**:
+
+- **Lines inherit the header's threat type.** "3 курсом на Ковель" under
+  "Загальна по мопедам:" now tags as `shahed` instead of `unknown`; a line
+  that states its own type ("1 іскандер на Суми") still keeps that.
+- **The header line itself no longer becomes a phantom event** — a bare
+  threat-word mention with no count, place, source or destination is a
+  section label, not a report.
+- **New verbless positional phrasings recognised:** "в районі X" / "у
+  районі X", "південніше/північніше/західніше/східніше X" (and the Russian
+  "южнее/севернее/западнее/восточнее X"), "крутиться/кружляє/барражує" for
+  circling, and a bare "курс західний/южный/etc." heading statement (mapped
+  to the compass bearing directly, not inverted like "coming from X").
+- **Gazetteer fixes:**
+  - 4-letter vowel-ending place names ("Мена") now decline correctly - the
+    engine required 5+ letters before.
+  - Added the Russian *and* Ukrainian genitive/accusative forms for "Біла
+    Церква" ("Белой Церкви" / "білої церкви") and a proper "Нова Одеса"
+    entry (Mykolaiv obl.) with its own declined forms, which previously
+    resolved to plain "Одеса" - a ~130 km location error.
+  - Fixed a case-ending false positive: "південніше"/"північніше" (etc.)
+    could get misread as the real village "Південне", stealing the line
+    from whatever place was actually named. Also removed an overly short
+    "Черкаси" alias that similarly hijacked "Черкаської області".
+
 ## 0.9.7 — 2026-09-12
 
 - **Default map tiles switched from `tile.openstreetmap.org` to Stadia Maps.**

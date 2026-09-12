@@ -105,7 +105,9 @@ def _decline(f: str) -> set[str]:
     nothing); we do NOT shorten to a bare stem (that would over-match)."""
     parts = f.rsplit(" ", 1)
     head, last = (parts[0] + " ", parts[1]) if len(parts) == 2 else ("", f)
-    if len(last) < 5 or last[-1] not in "аяое":
+    # >=4, not >=5: short vowel-ending names ("Мена" -> "мени"/"мену") need
+    # this too, not just longer ones ("Троєщина").
+    if len(last) < 4 or last[-1] not in "аяое":
         return {f}
     stem = last[:-1]
     forms = {last, stem + "и", stem + "у", stem + "і", stem + "е"}
@@ -233,6 +235,15 @@ class Gazetteer:
             # is an oblast reference - let detect_oblast / region_hit own it.
             tail = folded_text[m.end(1): m.end(1) + 5]
             if _REGION_TAIL_RE.match(tail) and not _REGION_TAIL_RE.search(key):
+                continue
+            # "південне" (a real village) declines to "південні", and the
+            # case-ending wildcard below would then swallow "ше" and steal
+            # every "південніше <real place>" line ("північніше"/"західніше"
+            # /"східніше" - same shape). A suffix starting with "ш" right
+            # after an -і/-и ending is the Ukrainian comparative degree
+            # ("-іший"/"-іше"), never a genuine case ending.
+            swallowed = folded_text[m.end(1): m.end(0)]
+            if key[-1:] in "іи" and swallowed[:1] == "ш":
                 continue
             span = (m.start(), m.end())
             if any(s <= span[0] < e for s, e in seen_spans):

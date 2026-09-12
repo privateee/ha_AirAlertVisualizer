@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.8
+
+Better parsing of "summary by type" posts (one header line declaring the
+threat, then many lines with no threat word of their own) - lines now
+correctly inherit the header's type instead of showing as "unknown", the
+header line itself no longer shows up as a phantom marker, and several new
+phrasings are recognised ("в районі X", "південніше/южнее X", bare "курс
+західний"), in both Ukrainian and Russian. Also fixes a couple of gazetteer
+mix-ups: "Нова Одеса" no longer resolves to plain "Одеса" (~130 km off), and
+"південніше"/"північніше" no longer get misread as the village "Південне".
+
 ## 0.9.7
 
 Default map tiles switched from `tile.openstreetmap.org` (casual-browser-only,

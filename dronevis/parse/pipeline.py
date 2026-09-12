@@ -136,6 +136,15 @@ class Parser:
                                area_center=area_center)
             header_place = next((h for h in hh if h.place.kind != "oblast"), None)
 
+        # "Загальна по мопедам:" declares the threat type for every line that
+        # follows without repeating it ("3 ... на Ковель", not "3 мопеда ...
+        # на Ковель"). Capture it from the header line only, and only a real
+        # RULES match - not classify_line's generic-motion "unknown" fallback.
+        header_tm = classify_line(fold(first_line))
+        post_default_type = (
+            header_tm.slug if header_tm is not None and header_tm.slug != "unknown" else None
+        )
+
         events: list[ParsedEvent] = []
         for line in split_lines(display):
             fline = fold(line)
@@ -162,6 +171,8 @@ class Parser:
                     tm = _UNKNOWN_MATCH
                 else:
                     continue
+            if tm.slug == "unknown" and post_default_type:
+                tm = ThreatMatch(post_default_type, tm.raw, tm.start)
             dr = analyze(fline, hits)
 
             # everything below works with plain (name, lat, lon) triples
@@ -197,10 +208,18 @@ class Parser:
             if src is not None and pos is not None and src[0] == pos[0]:
                 src = None
 
+            count = extract_count(line)
+            # a bare threat-word mention with no count, no position, no
+            # source, no destination is a section header ("Загальна по
+            # мопедам:"), not a report - drop it rather than emit a phantom
+            # placeless/countless event.
+            if count is None and pos is None and dest is None and src is None:
+                continue
+
             ev = ParsedEvent(
                 threat_type=tm.slug,
                 threat_raw=tm.raw or None,
-                count=extract_count(line),
+                count=count,
                 status=dr.status,
                 place_name=pos[0] if pos else None,
                 lat=pos[1] if pos else None,
