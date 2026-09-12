@@ -24,8 +24,8 @@ map with the message feed. Opens as a sidebar panel through HA **ingress**
 | `backfill_pages` | history depth on first run (~16-20 posts/page) |
 | `area_label` / `area_center_lat` / `area_center_lon` / `area_radius_km` | the map area of interest; the UI filters to it |
 | `map_theme` | `dark` or `light` (a ☀/🌙 button also toggles it per browser) |
-| `tile_url` | day basemap tiles |
-| `tile_url_dark` | night basemap; leave empty to invert the day tiles with a CSS filter (no extra CDN, works offline) |
+| `tile_url` | day basemap tiles. Defaults to Stadia Maps with a placeholder key — sign up free at [client.stadiamaps.com/signup](https://client.stadiamaps.com/signup/) and paste your API key over `YOUR_STADIA_API_KEY`. Don't point this at `tile.openstreetmap.org`: it's for casual browser use only and will 403-block the add-on ("Access blocked" tiles) once it sees app-like traffic |
+| `tile_url_dark` | night basemap tiles (same Stadia key); leave empty to CSS-invert the day tiles instead (no second key needed, works offline) |
 | `retain_days` | drop raw posts / clusters older than this; a VACUUM runs weekly |
 | `log_level` | `debug` / `info` / `warning` / `error` |
 | `log_format` | `text` (default) or `json` — one JSON object per log line for aggregators |

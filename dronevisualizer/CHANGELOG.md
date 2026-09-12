@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.7
+
+Default map tiles switched from `tile.openstreetmap.org` (casual-browser-only,
+started 403-blocking the add-on) to Stadia Maps. One free step needed: sign up
+at [client.stadiamaps.com/signup](https://client.stadiamaps.com/signup/), then
+paste your API key over `YOUR_STADIA_API_KEY` in the `tile_url` /
+`tile_url_dark` options. Night mode now uses Stadia's own dark style instead
+of a CSS-inverted light map (leave `tile_url_dark` empty to go back to that).
+
 ## 0.9.6
 
 Mobile: tapping a map marker now just opens the popup - it no longer also

@@ -104,13 +104,28 @@ class ParseConfig:
 class ServerConfig:
     host: str = "127.0.0.1"
     port: int = 8750
-    tile_url: str = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-    tile_attribution: str = "&copy; OpenStreetMap contributors"
-    # Dark basemap for night mode. Left EMPTY by default: the UI just inverts
-    # the normal OSM tiles with a CSS filter, so night mode needs no extra CDN
-    # and works offline. Point it at a real dark tile server if you have one.
-    tile_url_dark: str = ""
-    tile_attribution_dark: str = "&copy; OpenStreetMap contributors"
+    # tile.openstreetmap.org is for casual browser use only - OSMF's Tile
+    # Usage Policy (osm.wiki/Tile_usage_policy) blocks apps that hammer it,
+    # which DroneVisualizer eventually will. Default to Stadia Maps instead
+    # (free non-commercial tier, no card, has a proper dark style): sign up
+    # at https://client.stadiamaps.com/signup/, grab an API key, and paste it
+    # over YOUR_STADIA_API_KEY in both tile_url and tile_url_dark below - or
+    # override with DRONEVIS_TILE_URL[_DARK] / the tile_url[_dark] add-on
+    # options. Restrict the key to your domain(s) in the Stadia dashboard.
+    tile_url: str = (
+        "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
+        "?api_key=YOUR_STADIA_API_KEY"
+    )
+    tile_attribution: str = (
+        '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> '
+        '&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> '
+        '&copy; <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap contributors</a>'
+    )
+    tile_url_dark: str = (
+        "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png"
+        "?api_key=YOUR_STADIA_API_KEY"
+    )
+    tile_attribution_dark: str = tile_attribution
     map_theme: str = "dark"                 # dark | light (initial map theme)
 
 

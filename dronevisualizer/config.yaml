@@ -1,5 +1,5 @@
 name: "DroneVisualizer"
-version: "0.9.6"
+version: "0.9.7"
 slug: "dronevisualizer"
 description: "Ukrainian air-threat Telegram channels on a live map + HA sensors"
 url: "https://github.com/privateee/ha_AirAlertVisualizer"
@@ -25,8 +25,8 @@ options:
   area_center_lon: 30.5234
   area_radius_km: 130
   map_theme: dark
-  tile_url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-  tile_url_dark: ""
+  tile_url: "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=YOUR_STADIA_API_KEY"
+  tile_url_dark: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=YOUR_STADIA_API_KEY"
   alarm_threats:
     - ballistic
   alarm_min_confidence: 0.5

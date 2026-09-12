@@ -148,7 +148,7 @@ env vars. Highlights:
 | `dedupe.trajectory` / `speed_kmh` / `speed_slack` / `heading_tolerance_deg` / `count_tolerance` | trajectory-chaining envelope |
 | `parse.terse_channels` | channels that post bare toponyms with no threat word |
 | `parse.llm.*` | optional local-LLM fallback (off by default) |
-| `server.tile_url` / `tile_url_dark` | day / night basemaps; leave `tile_url_dark: ""` to just CSS-dim the light tiles offline |
+| `server.tile_url` / `tile_url_dark` | day / night basemaps; leave `tile_url_dark: ""` to just CSS-dim the light tiles offline. Defaults to Stadia Maps (free tier, sign up at [client.stadiamaps.com/signup](https://client.stadiamaps.com/signup/)) — **not** `tile.openstreetmap.org`, which is for casual browser use only and will 403-block an app once it looks like automated traffic |
 | `server.map_theme` | `dark` (default) or `light`; the ☀/🌙 button in the header overrides it per-browser |
 
 ### Optional LLM fallback

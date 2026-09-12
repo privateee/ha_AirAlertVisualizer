@@ -2,6 +2,19 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.7 — 2026-09-12
+
+- **Default map tiles switched from `tile.openstreetmap.org` to Stadia Maps.**
+  OpenStreetMap's own tile server is for casual browser use only - its Tile
+  Usage Policy blocks apps once traffic looks automated, and DroneVisualizer
+  was getting 403'd ("Access blocked" tiles across the whole map). New
+  installs need one free step: sign up at
+  <https://client.stadiamaps.com/signup/>, grab an API key, and paste it over
+  `YOUR_STADIA_API_KEY` in `tile_url` / `tile_url_dark` (`config.yaml`, the
+  add-on options, or `DRONEVIS_TILE_URL[_DARK]`). Night mode now uses
+  Stadia's own dark style by default instead of a CSS-inverted light map
+  (still available by leaving `tile_url_dark` empty).
+
 ## 0.9.6 — 2026-08-31
 
 - **Mobile: tapping a map marker no longer also raises the feed.** The marker

@@ -102,17 +102,26 @@ parse:
 server:
   host: 127.0.0.1
   port: 8750
-  # Raster tile template. OSM needs internet; swap for a local tile server
-  # or an MBTiles proxy when running offline on a Pi.
-  tile_url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-  tile_attribution: "&copy; OpenStreetMap contributors"
-  # Night mode. Empty tile_url_dark (default) = invert the normal OSM tiles
-  # with a CSS filter: no extra CDN, works offline, gives a grey/black map
-  # with light labels. Set it to a real dark tile server if you have one that
-  # your network can reach, e.g.
-  #   "https://{s}.basemap.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-  tile_url_dark: ""
-  tile_attribution_dark: "&copy; OpenStreetMap contributors"
+  # Raster tile template.
+  #
+  # tile.openstreetmap.org is for casual browser use only - OpenStreetMap's
+  # Tile Usage Policy (osm.wiki/Tile_usage_policy) blocks apps that hammer
+  # it, and DroneVisualizer eventually will get 403'd there ("Access
+  # blocked" tiles across the whole map). Use a provider meant for apps
+  # instead. Defaults below are Stadia Maps, which has a free non-commercial
+  # tier (no credit card) and a proper dark style:
+  #   1. sign up: https://client.stadiamaps.com/signup/
+  #   2. dashboard -> API Keys -> create one, restrict it to your domain(s)
+  #   3. paste it over YOUR_STADIA_API_KEY in both URLs below
+  # (or point these at any other tile provider / a local tile server / an
+  # MBTiles proxy when running fully offline on a Pi.)
+  tile_url: "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=YOUR_STADIA_API_KEY"
+  tile_attribution: '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap contributors</a>'
+  # Night mode uses Stadia's own dark style by default. Leave tile_url_dark
+  # empty instead to just CSS-invert the day tiles (no second CDN, works
+  # offline, grey/black map with light labels).
+  tile_url_dark: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=YOUR_STADIA_API_KEY"
+  tile_attribution_dark: '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap contributors</a>'
   map_theme: dark            # dark | light  (the ☀/🌙 button overrides per browser)
 
 # ---------------------------------------------------------------------------
