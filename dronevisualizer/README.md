@@ -37,6 +37,15 @@ map with the message feed. Opens as a sidebar panel through HA **ingress**
 The SQLite database lives in the add-on's `/data`, so it survives restarts
 and updates.
 
+## Map tiles (Stadia Maps)
+
+The default map tiles come from Stadia Maps and need a free API key (the
+OpenStreetMap tile server blocks apps). Every option has setup help right in
+the add-on's **Configuration** tab; in short: sign up at
+<https://client.stadiamaps.com/signup/>, create an API key, paste it over
+`YOUR_STADIA_API_KEY` in **both** `tile_url` and `tile_url_dark` (keep the whole
+URL, not just the key), save, then **restart** the add-on.
+
 ## Sensors (MQTT discovery)
 
 With the **Mosquitto broker** add-on installed, DroneVisualizer publishes a

@@ -148,8 +148,46 @@ env vars. Highlights:
 | `dedupe.trajectory` / `speed_kmh` / `speed_slack` / `heading_tolerance_deg` / `count_tolerance` | trajectory-chaining envelope |
 | `parse.terse_channels` | channels that post bare toponyms with no threat word |
 | `parse.llm.*` | optional local-LLM fallback (off by default) |
-| `server.tile_url` / `tile_url_dark` | day / night basemaps; leave `tile_url_dark: ""` to just CSS-dim the light tiles offline. Defaults to Stadia Maps (free tier, sign up at [client.stadiamaps.com/signup](https://client.stadiamaps.com/signup/)) — **not** `tile.openstreetmap.org`, which is for casual browser use only and will 403-block an app once it looks like automated traffic |
+| `server.tile_url` / `tile_url_dark` | day / night basemaps ([Stadia setup steps](#map-tiles-stadia-maps-setup)); leave `tile_url_dark: ""` to just CSS-dim the light tiles offline. Defaults to Stadia Maps (free tier, sign up at [client.stadiamaps.com/signup](https://client.stadiamaps.com/signup/)) — **not** `tile.openstreetmap.org`, which is for casual browser use only and will 403-block an app once it looks like automated traffic |
 | `server.map_theme` | `dark` (default) or `light`; the ☀/🌙 button in the header overrides it per-browser |
+
+### Map tiles (Stadia Maps setup)
+
+The map background comes from a raster tile provider. `tile.openstreetmap.org`
+is for casual browsing only and **403-blocks apps** (you get "Access blocked"
+tiles across the map), so the default is [Stadia Maps](https://stadiamaps.com/)
+- free for non-commercial use, no credit card. One-time setup:
+
+1. Sign up at <https://client.stadiamaps.com/signup/>.
+2. In the dashboard create an API key (Stadia may call it a *property*). It is
+   worth restricting it to your domain / host there, since tile URLs - and so
+   the key - are visible in the browser.
+3. Put the key into **both** tile URLs, replacing only `YOUR_STADIA_API_KEY`.
+   Keep the whole URL - pasting just the bare key gives a blank map:
+
+   ```yaml
+   # config.yaml
+   server:
+     tile_url: "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=YOUR_KEY"
+     tile_url_dark: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=YOUR_KEY"
+   ```
+
+   or with environment variables (Docker, macOS launcher, scripts):
+
+   ```bash
+   export DRONEVIS_TILE_URL="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=YOUR_KEY"
+   export DRONEVIS_TILE_URL_DARK="https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=YOUR_KEY"
+   ```
+
+   In `docker-compose.yml` put the same two under `environment:`.
+4. Restart DroneVisualizer - config is read once at start-up.
+
+Leave `tile_url_dark: ""` to skip the second URL and just CSS-dim the day tiles
+instead. Any other provider works too: set the two URLs to its template
+(`{z}/{x}/{y}`) and update `tile_attribution` to match. `config.yaml` is
+git-ignored, so your key is not committed - never put it in
+`config.example.yaml`. Home Assistant add-on users: set the same two URLs in the
+add-on's **Configuration** tab instead (each option has setup help there).
 
 ### Optional LLM fallback
 

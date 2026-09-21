@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.10
+
+Every option now has help text in the Configuration tab, including step-by-step
+Stadia Maps setup for `tile_url` / `tile_url_dark`.
+
 ## 0.9.9
 
 The region picker now offers every Ukrainian oblast, not just Kyiv and

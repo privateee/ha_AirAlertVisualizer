@@ -2,6 +2,16 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.10 — 2026-09-21
+
+- **Stadia Maps setup help where you configure it.** Home Assistant add-on:
+  every option now has a name and description in the Configuration tab
+  (new `translations/en.yaml`), with step-by-step Stadia setup on
+  `tile_url` / `tile_url_dark` - including "paste the whole URL, not just the
+  key" and "restart the add-on afterwards". Standalone / Docker / macOS:
+  new "Map tiles (Stadia Maps setup)" section in the README (config.yaml,
+  `DRONEVIS_TILE_URL[_DARK]`, docker-compose).
+
 ## 0.9.9 — 2026-09-12
 
 **Region picker: every oblast, not just Kyiv and Dnipro.** The area dropdown

@@ -1,0 +1,79 @@
+configuration:
+  channels:
+    name: Telegram channels
+    description: >-
+      Public Telegram channels to read (the t.me/s/ web preview, no login
+      needed). Enter the channel name without the @.
+  poll_interval_seconds:
+    name: Poll interval (seconds)
+    description: How often to fetch new posts from every channel.
+  backfill_pages:
+    name: History depth on first run
+    description: >-
+      How many pages of history to read per channel the very first time
+      (about 16-20 posts per page).
+  area_label:
+    name: Custom area - label
+    description: >-
+      Name of your own extra area. It is added to the region picker next to
+      the built-in list (Kyiv + oblast, every oblast "+ nearby", All
+      Ukraine). Leave all four area options at their defaults to add nothing.
+  area_center_lat:
+    name: Custom area - centre latitude
+    description: Latitude of the centre of your own extra area.
+  area_center_lon:
+    name: Custom area - centre longitude
+    description: Longitude of the centre of your own extra area.
+  area_radius_km:
+    name: Custom area - radius (km)
+    description: Radius of your own extra area, in kilometres.
+  map_theme:
+    name: Map theme
+    description: >-
+      Initial map look, dark or light. The sun/moon button in the header
+      still switches it per browser.
+  tile_url:
+    name: Map tiles URL (day)
+    description: >-
+      The map background. OpenStreetMap's own tile server blocks apps, so
+      this needs an app-friendly provider - the default is Stadia Maps
+      (free for non-commercial use, no credit card). SETUP - 1) Sign up at
+      https://client.stadiamaps.com/signup/ 2) In the dashboard create an API key
+      (Stadia may call it a "property"; optionally restrict
+      it to your domain) 3) In this URL replace ONLY the text
+      YOUR_STADIA_API_KEY with your key - keep everything else, the whole
+      URL must stay: https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=YOUR_KEY
+      (do not paste just the bare key) 4) Save and RESTART the add-on -
+      options are read once at start-up. Until then the map is blank.
+  tile_url_dark:
+    name: Map tiles URL (night)
+    description: >-
+      The dark-mode map background, same Stadia key. Use the same URL with
+      "alidade_smooth_dark" instead of "alidade_smooth":
+      https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=YOUR_KEY
+      Leave it empty to dim the day tiles with a CSS filter instead (no
+      second URL needed, works offline).
+  alarm_threats:
+    name: Alarm threat types
+    description: >-
+      Threat types that turn on binary_sensor.dronevis_alarm. Use slugs
+      (banderol, kalibr, x101, x22, cruise_missile, kinzhal, iskander,
+      ballistic, shahed, jet_uav, recon_uav, kab, aircraft) or a family name
+      such as ballistic (= Kinzhal + Iskander + ballistic).
+  alarm_min_confidence:
+    name: Alarm minimum confidence
+    description: Ignore parses below this confidence (0-1) for the alarm sensor.
+  mqtt:
+    name: MQTT sensors
+    description: >-
+      auto = publish HA sensors through the Mosquitto broker add-on if it is
+      installed; true = require it; false = off.
+  retain_days:
+    name: Keep data for (days)
+    description: Posts and clusters older than this are deleted automatically.
+  log_level:
+    name: Log level
+    description: How much the add-on writes to its log.
+  log_format:
+    name: Log format
+    description: text (default) or json (one JSON object per line).
