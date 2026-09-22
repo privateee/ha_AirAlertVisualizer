@@ -11,6 +11,12 @@ Entities (device "DroneVisualizer"):
     sensor.dronevis_active            active cluster count
     sensor.dronevis_nearest_km        distance to the nearest active threat
     sensor.dronevis_last_update       timestamp of the latest report
+    event.dronevis_detected           fires once per newly-seen cluster, even
+                                      while a binary_sensor is already on -
+                                      event_type is the threat slug; attributes
+                                      carry place/count/destination/etc. Lets an
+                                      automation react to *each* new report
+                                      instead of only the first on->off edge.
 
 Broker: `mqtt.host` in config, or - inside the HA add-on - auto-discovered
 from the Supervisor (`http://supervisor/services/mqtt`).
@@ -109,11 +115,29 @@ def compute_state(db, cfg: Config) -> dict:
                             "centroid_lat": c["dest_lat"], "centroid_lon": c["dest_lon"],
                             "dest_lat": None, "dest_lon": None})})
         chans = sorted({ch for c in cl for ch in json.loads(c["channels"])})
+        # per-cluster detail, not just the type-level rollup above - lets the
+        # HAPublisher event entity fire once per genuinely new report instead
+        # of once per (type, area) combination.
+        clusters = [
+            {
+                "id": c["id"],
+                "place_name": c["place_name"],
+                "count": c["count"] or c["event_count"] or 1,
+                "dest_name": c["dest_name"],
+                "channels": sorted(json.loads(c["channels"])),
+                "nearest_km": round(where(c)[0], 1),
+                "nearest_bearing": compass(where(c)[1]),
+                "confidence": round(conf.get(c["id"], 0.0), 2),
+                "updated": c["last_posted_at"],
+            }
+            for c in cl
+        ]
         threats[slug] = {
             "on": True,
             "label": LABEL.get(slug, slug),
             "count": sum((c["count"] or c["event_count"] or 1) for c in cl),
             "clusters": len(cl),
+            "cluster_detail": clusters,
             "nearest_km": round(nd, 1),
             "nearest_bearing": compass(nb),
             "nearest_place": npl,
@@ -171,6 +195,10 @@ class HAPublisher:
         self._connected = False
         self._lock = threading.Lock()
         self.enabled = self.mc.enabled != "false"
+        # cluster ids reported in the *previous* publish, so the event entity
+        # fires once per genuinely new report rather than once per poll.
+        self._seen_cluster_ids: set[int] = set()
+        self._seen_primed = False
 
     @property
     def connected(self) -> bool:
@@ -288,13 +316,52 @@ class HAPublisher:
             "name": "Last report", "state_topic": f"{b}/last_update/state",
             "device_class": "timestamp", "icon": "mdi:clock-outline",
         })
+        self._entity("event", "detected", {
+            "name": "Threat detected",
+            "event_types": ALL_SLUGS,
+            "state_topic": f"{b}/event/detected",
+            "json_attributes_topic": f"{b}/event/detected",
+            "icon": "mdi:alert-decagram",
+        })
 
     # -- state --------------------------------------------------------
+    def _publish_new_detections(self, b: str, pub, state: dict) -> None:
+        """Fire event.dronevis_detected once per cluster id not seen in the
+        previous publish. Primes silently on the very first publish (after
+        an add-on restart) so already-active threats don't all fire at once."""
+        current_ids: set[int] = set()
+        by_id: dict[int, tuple[str, dict]] = {}
+        for slug, t in state["threats"].items():
+            for c in t.get("cluster_detail", []):
+                current_ids.add(c["id"])
+                by_id[c["id"]] = (slug, c)
+
+        new_ids = current_ids - self._seen_cluster_ids if self._seen_primed else set()
+        self._seen_primed = True
+        self._seen_cluster_ids = current_ids
+
+        for cid in new_ids:
+            slug, c = by_id[cid]
+            payload = {
+                "event_type": slug,
+                "label": state["threats"][slug]["label"],
+                "place_name": c["place_name"],
+                "count": c["count"],
+                "dest_name": c["dest_name"],
+                "nearest_km": c["nearest_km"],
+                "nearest_bearing": c["nearest_bearing"],
+                "sources": c["channels"],
+                "confidence": c["confidence"],
+                "area": state["area"],
+            }
+            pub(f"{b}/event/detected", json.dumps(payload), retain=False)
+
     def publish(self, state: dict) -> None:
         if not (self._client and self._connected):
             return
         b, pub = self.mc.base_topic, self._client.publish
         with self._lock:
+            self._publish_new_detections(b, pub, state)
             for slug in ALL_SLUGS:
                 t = state["threats"].get(slug)
                 pub(f"{b}/threat/{slug}/state", "ON" if t else "OFF", retain=True)

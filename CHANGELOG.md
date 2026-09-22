@@ -2,6 +2,21 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.11 — 2026-09-22
+
+- **New `event.dronevis_detected` sensor.** Fires once per newly-seen
+  report, even while a `binary_sensor` is already on — the existing
+  `binary_sensor.dronevis_alarm` only re-triggers on an off→on edge, so a
+  second shahed group reported while the first is still active previously
+  never refired anything. `event_type` is the threat slug; attributes
+  carry place, count, destination, distance/bearing, sources and
+  confidence. Silent on the first publish after a restart, so already-active
+  threats don't all fire at once. Pattern borrowed from
+  [ha-aerial-danger](https://github.com/denysdovhan/ha-aerial-danger)'s
+  event entity.
+- `compute_state()` now also returns per-cluster detail
+  (`threats.<slug>.cluster_detail`), not just the type-level rollup.
+
 ## 0.9.10 — 2026-09-21
 
 - **Stadia Maps setup help where you configure it.** Home Assistant add-on:

@@ -59,9 +59,12 @@ With the **Mosquitto broker** add-on installed, DroneVisualizer publishes a
 | `sensor.dronevis_active` | active cluster count |
 | `sensor.dronevis_nearest_km` | distance to the nearest active threat |
 | `sensor.dronevis_last_update` | timestamp of the latest report |
+| `event.dronevis_detected` | fires once for **every** newly-seen report, even while a `binary_sensor` is already on. `binary_sensor.dronevis_alarm` only re-triggers on an off→on edge, so a second shahed group reported while the first is still active won't refire it — this event does. Its `event_type` is the threat slug (`shahed`, `kinzhal`, …); attributes carry `place_name`, `count`, `dest_name`, `nearest_km`, `nearest_bearing`, `sources`, `confidence`. Silent on the first publish after a restart (so already-active threats don't all fire at once) |
 
 Import `blueprints/automation/dronevis_alert.yaml` for a ready critical-push /
-TTS automation driven by `binary_sensor.dronevis_alarm`.
+TTS automation driven by `binary_sensor.dronevis_alarm`. For "notify me about
+every new report, not just the first", trigger on `event.dronevis_detected`
+instead (optionally filtered to specific `event_type`s).
 
 `GET /api/ha` (inside the ingress panel) returns the same snapshot as JSON.
 

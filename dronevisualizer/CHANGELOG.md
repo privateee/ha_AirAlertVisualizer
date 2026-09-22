@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.11
+
+New `event.dronevis_detected` entity: fires once per newly-seen report, even
+while `binary_sensor.dronevis_alarm` is already on (which only re-triggers on
+off→on). Use it to get notified about *every* new report, not just the first
+one. `event_type` is the threat slug; attributes carry place/count/
+destination/distance/sources/confidence.
+
 ## 0.9.10
 
 Every option now has help text in the Configuration tab, including step-by-step

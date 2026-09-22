@@ -7,7 +7,7 @@ import pytest
 
 from dronevis.config import load_config
 from dronevis.db import Database
-from dronevis.ha import compute_state, expand_alarm_slugs
+from dronevis.ha import HAPublisher, compute_state, expand_alarm_slugs
 
 
 def test_expand_alarm_slugs_family_and_slug():
@@ -82,3 +82,77 @@ def test_resolved_and_stale_clusters_excluded(db):
     db.update_cluster(cid, {"resolved_at": datetime.now(timezone.utc).isoformat()})
     s = compute_state(db, cfg)
     assert s["alarm"]["on"] is False and s["active"] == 0
+
+
+def test_compute_state_includes_per_cluster_detail(db):
+    cid = _cluster(db, threat_type="shahed", place_name="Бровари", count=3)
+    s = compute_state(db, load_config())
+    detail = s["threats"]["shahed"]["cluster_detail"]
+    assert [d["id"] for d in detail] == [cid]
+    assert detail[0]["place_name"] == "Бровари" and detail[0]["count"] == 3
+
+
+# ---- event.dronevis_detected -------------------------------------------
+class _FakeClient:
+    def __init__(self):
+        self.calls: list[tuple[str, str, bool]] = []
+
+    def publish(self, topic, payload, retain=False):
+        self.calls.append((topic, payload, retain))
+
+
+def _publisher() -> tuple[HAPublisher, _FakeClient]:
+    pub = HAPublisher(load_config())
+    client = _FakeClient()
+    pub._client = client
+    pub._connected = True
+    return pub, client
+
+
+def _events(client: _FakeClient) -> list[dict]:
+    return [json.loads(p) for t, p, r in client.calls if t.endswith("/event/detected")]
+
+
+def test_first_publish_primes_silently_no_events(db):
+    cid = _cluster(db, threat_type="shahed")
+    pub, client = _publisher()
+    pub.publish(compute_state(db, load_config()))
+    assert _events(client) == []
+    assert pub._seen_cluster_ids == {cid}
+
+
+def test_new_cluster_after_priming_fires_one_event(db):
+    pub, client = _publisher()
+    pub.publish(compute_state(db, load_config()))     # prime on an empty DB
+    cid = _cluster(db, threat_type="shahed", place_name="Бровари", count=2)
+    pub.publish(compute_state(db, load_config()))
+    evs = _events(client)
+    assert len(evs) == 1
+    assert evs[0]["event_type"] == "shahed"
+    assert evs[0]["place_name"] == "Бровари"
+    assert evs[0]["count"] == 2
+
+
+def test_same_cluster_does_not_refire_on_next_publish(db):
+    pub, client = _publisher()
+    pub.publish(compute_state(db, load_config()))
+    _cluster(db, threat_type="shahed")
+    pub.publish(compute_state(db, load_config()))
+    assert len(_events(client)) == 1
+    client.calls.clear()
+    pub.publish(compute_state(db, load_config()))      # same cluster, unchanged
+    assert _events(client) == []
+
+
+def test_a_second_new_cluster_fires_again_while_first_still_active(db):
+    """This is the whole point of the event entity: binary_sensor.dronevis_alarm
+    stays "on" across both, so only the event entity tells you a *second*
+    report just came in."""
+    pub, client = _publisher()
+    pub.publish(compute_state(db, load_config()))
+    _cluster(db, threat_type="shahed", place_name="A")
+    pub.publish(compute_state(db, load_config()))
+    _cluster(db, threat_type="shahed", place_name="B")
+    pub.publish(compute_state(db, load_config()))
+    evs = _events(client)
+    assert [e["place_name"] for e in evs] == ["A", "B"]
