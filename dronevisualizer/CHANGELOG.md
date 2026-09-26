@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.14
+
+Fix: on a phone the HA app kept running the cached, broken 0.9.12 script
+(popup couldn't be closed, map and buttons stopped responding). The page now
+loads its script/styles by version, so every update is fetched fresh, and it
+reloads itself once if it finds it's older than the add-on. The popup's
+Sources fold was also reworked so it can never redraw itself in a loop.
+
 ## 0.9.13
 
 Fix a 0.9.12 regression: on a phone, tapping a marker froze the page (popup

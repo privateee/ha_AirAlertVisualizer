@@ -7,6 +7,10 @@ const WINDOW_MS = {
   "6h": 6 * 36e5, "12h": 12 * 36e5, "24h": 24 * 36e5, "48h": 48 * 36e5,
 };
 
+// the version this script was loaded as (index.html links app.js?v=<version>)
+const JS_VERSION = new URLSearchParams(
+  (document.currentScript && document.currentScript.src.split("?")[1]) || "").get("v");
+
 let CFG = null;
 let map = null;
 let tileLayer = null;
@@ -196,6 +200,19 @@ async function init() {
   const resp = await fetch("api/config", NO_STORE);
   if (!resp.ok) throw new Error("HTTP " + resp.status);
   CFG = await resp.json();
+
+  // A cached page from before an add-on update would keep running old code
+  // (the HA app's WebView is sticky about this). Reload once to pick up the
+  // new version; the session flag stops a loop if something still mismatches.
+  if (JS_VERSION && CFG.version && JS_VERSION !== CFG.version) {
+    let tried = null;
+    try { tried = sessionStorage.getItem("dvReload"); } catch (_) {}
+    if (tried !== CFG.version) {
+      try { sessionStorage.setItem("dvReload", CFG.version); } catch (_) {}
+      location.reload();
+      return;
+    }
+  }
 
   if (!map) {                               // one-time setup, safe to re-enter
     const savedWin = lsGet("window");
@@ -746,24 +763,23 @@ function srcOpen() {
   return v === null ? !isMobile() : v === "1";
 }
 
-// Wire a marker popup once per popup instance. Its content is rebuilt on every
-// open (lazy content), so listen on the stable content node - in the capture
-// phase, because "toggle" does not bubble.
+// Wire a marker popup once per popup instance (its content node is stable,
+// the lazy content inside it is rebuilt on every open).
+// Remember the Sources fold from a user *tap* on its summary - never from the
+// "toggle" event: inserting a <details open> fires "toggle" too, and redrawing
+// the popup from there re-rendered it forever and froze phones (0.9.12).
+// Nothing here redraws the popup; the wrapper grows with its content.
 function wirePopup(popup) {
   const el = popup.getElement() &&
     popup.getElement().querySelector(".leaflet-popup-content");
   if (!el || el.dataset.wired) return;
   el.dataset.wired = "1";
-  el.addEventListener("toggle", (ev) => {
-    if (!ev.target.classList || !ev.target.classList.contains("pp-src-box")) return;
-    // Inserting a <details open> also fires "toggle", and popup.update()
-    // rebuilds the (lazy) content - so only react to a real change of state,
-    // or it re-renders itself forever and the page stops taking taps.
-    const v = ev.target.open ? "1" : "0";
-    if (v === (srcOpen() ? "1" : "0")) return;
-    lsSet(srcKey(), v);
-    popup.update();                          // resize / re-position after folding
-  }, true);
+  el.addEventListener("click", (ev) => {
+    const sum = ev.target.closest(".pp-src-box > summary");
+    if (!sum) return;
+    // the click runs before the browser flips `open`, so the new state is !open
+    lsSet(srcKey(), sum.parentElement.open ? "0" : "1");
+  });
   if (!isMobile()) return;
   // mobile: tapping the popup body raises the feed sheet to its message
   el.classList.add("pp-tap");

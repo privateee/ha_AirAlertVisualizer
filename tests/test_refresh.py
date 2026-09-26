@@ -64,3 +64,21 @@ def test_api_responses_are_not_cacheable(monkeypatch):
         r = client.get(path)
         assert r.status_code == 200
         assert r.headers.get("cache-control") == "no-cache", path
+
+
+def test_page_links_versioned_assets(monkeypatch):
+    """A new add-on version changes the js/css URLs, so a WebView that cached
+    the old app.js can't keep running it."""
+    from fastapi.testclient import TestClient
+
+    from dronevis import __version__
+    from dronevis.api import create_app
+
+    monkeypatch.setenv("DRONEVIS_DB_PATH", tempfile.mktemp(suffix=".db"))
+    client = TestClient(create_app(load_config()))
+    for path in ("/", "/index.html"):
+        html = client.get(path).text
+        assert f'src="app.js?v={__version__}"' in html, path
+        assert f'href="style.css?v={__version__}"' in html, path
+    assert client.get("/api/config").json()["version"] == __version__
+    assert client.get(f"/app.js?v={__version__}").status_code == 200

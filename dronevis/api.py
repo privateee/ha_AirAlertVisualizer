@@ -17,6 +17,7 @@ mimetypes.add_type("image/svg+xml", ".svg")
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dateutil import parser as dtp
 from fastapi import FastAPI, Query
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
@@ -148,6 +149,7 @@ def create_app(cfg: Config | None = None):
             "tile_attribution_dark": cfg.server.tile_attribution_dark,
             "map_theme": cfg.server.map_theme,
             "poll_interval": cfg.poll.interval_seconds,
+            "version": __version__,
         }
 
     @app.get("/api/stats")
@@ -328,6 +330,18 @@ def create_app(cfg: Config | None = None):
         return await asyncio.to_thread(service.reparse_all)
 
     if WEB_DIR.exists():
+        # The page links its own js/css with ?v=<version>: a phone (HA app
+        # WebView) that cached an older app.js can't keep running it after an
+        # add-on update, because the new page asks for a different URL.
+        index_html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+        for asset in ("style.css", "app.js"):
+            index_html = index_html.replace(f'"{asset}"', f'"{asset}?v={__version__}"')
+
+        @app.get("/", include_in_schema=False)
+        @app.get("/index.html", include_in_schema=False)
+        def index():
+            return HTMLResponse(index_html)
+
         app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
 
     # Home Assistant ingress forwards request paths with a doubled leading

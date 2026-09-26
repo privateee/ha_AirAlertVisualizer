@@ -2,6 +2,20 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.14 — 2026-09-26
+
+- **Fix: phones kept running the broken 0.9.12 code after updating.** The
+  HA app's WebView had cached the old `app.js`, and 0.9.13's `no-cache`
+  header can't evict a copy cached before it existed. The page now links
+  `app.js?v=<version>` / `style.css?v=<version>`, so every add-on update
+  is a new URL the WebView must download; and if the running script is
+  still older than the server (`/api/config` now reports `version`), the
+  page reloads itself once.
+- The popup's Sources fold no longer listens to the `toggle` event at all
+  and never redraws the popup: the choice is saved from a tap on its
+  summary. The 0.9.12 freeze (endless popup re-render, then no taps or
+  panning) can't come back through this path.
+
 ## 0.9.13 — 2026-09-26
 
 - **Fix (0.9.12 regression): on a phone, tapping a marker froze the page** —
