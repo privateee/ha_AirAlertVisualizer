@@ -756,7 +756,12 @@ function wirePopup(popup) {
   el.dataset.wired = "1";
   el.addEventListener("toggle", (ev) => {
     if (!ev.target.classList || !ev.target.classList.contains("pp-src-box")) return;
-    lsSet(srcKey(), ev.target.open ? "1" : "0");
+    // Inserting a <details open> also fires "toggle", and popup.update()
+    // rebuilds the (lazy) content - so only react to a real change of state,
+    // or it re-renders itself forever and the page stops taking taps.
+    const v = ev.target.open ? "1" : "0";
+    if (v === (srcOpen() ? "1" : "0")) return;
+    lsSet(srcKey(), v);
     popup.update();                          // resize / re-position after folding
   }, true);
   if (!isMobile()) return;

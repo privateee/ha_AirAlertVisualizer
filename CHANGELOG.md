@@ -2,6 +2,18 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.13 — 2026-09-26
+
+- **Fix (0.9.12 regression): on a phone, tapping a marker froze the page** —
+  the popup couldn't be closed and nothing but map panning responded.
+  Inserting the popup's open "Sources" `<details>` fires a `toggle` event;
+  its handler called `popup.update()`, which rebuilt the lazy content,
+  which fired `toggle` again — an endless re-render loop (~350/s). The
+  handler now reacts only to a real fold/unfold by the user.
+- The page's own files (html/js/css) are now served `Cache-Control:
+  no-cache`, so browsers and the HA app revalidate them on every load and
+  pick up an add-on update instead of running a stale `app.js`.
+
 ## 0.9.12 — 2026-09-26
 
 - **Fix: Refresh/Fetch sometimes didn't show new marks** until the HA page

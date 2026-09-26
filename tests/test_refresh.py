@@ -59,3 +59,8 @@ def test_api_responses_are_not_cacheable(monkeypatch):
         r = client.get(path)
         assert r.status_code == 200
         assert r.headers.get("cache-control") == "no-store", path
+    # the page's own files are revalidated, so an update reaches phones
+    for path in ("/", "/app.js", "/style.css"):
+        r = client.get(path)
+        assert r.status_code == 200
+        assert r.headers.get("cache-control") == "no-cache", path

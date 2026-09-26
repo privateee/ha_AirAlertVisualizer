@@ -108,12 +108,17 @@ def create_app(cfg: Config | None = None):
     app = FastAPI(title="DroneVisualizer", version=__version__, lifespan=lifespan)
 
     # live data must never come from a cache - the HA companion app's WebView
-    # and some proxies will otherwise happily reuse a GET for /api/clusters
+    # and some proxies will otherwise happily reuse a GET for /api/clusters.
+    # The page itself (html/js/css) must be revalidated on every load, or a
+    # phone keeps running the old app.js after an add-on update (a cheap 304
+    # via the ETag when nothing changed).
     @app.middleware("http")
     async def _no_store_api(request, call_next):
         resp = await call_next(request)
         if request.url.path.startswith("/api/"):
             resp.headers["Cache-Control"] = "no-store"
+        elif "cache-control" not in resp.headers:
+            resp.headers["Cache-Control"] = "no-cache"
         return resp
 
     db: Database = service.db

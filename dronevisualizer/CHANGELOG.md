@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.13
+
+Fix a 0.9.12 regression: on a phone, tapping a marker froze the page (popup
+couldn't be closed, only map panning worked) when the popup's "Sources" list
+was unfolded. Also: the web UI's files are now always revalidated, so the HA
+app picks up updates instead of running a cached old version.
+
 ## 0.9.12
 
 Fix: Refresh/Fetch sometimes didn't show new marks until you switched HA pages
