@@ -79,7 +79,10 @@
       </button>
       <div class="stream-head">
         <div id="timeline" aria-hidden="true"></div>
-        <div id="channels" class="chips"></div>
+        <details id="chanBox">
+          <summary id="chanSummary">Sources</summary>
+          <div id="channels" class="chips"></div>
+        </details>
         <input type="search" id="search" data-i18n-ph="filterText" placeholder="filter text…" />
       </div>
       <ul id="msgs"></ul>

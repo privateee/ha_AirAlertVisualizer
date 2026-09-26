@@ -53,6 +53,7 @@ body {
 }
 #bar button { cursor: pointer; }
 #bar button:hover { border-color: var(--accent); }
+#bar button:disabled { opacity: .55; cursor: progress; }
 #bar .icon-btn { padding: 7px 9px; font-size: 15px; line-height: 1; }
 
 .bar-actions {
@@ -191,7 +192,8 @@ body.sheet-open #sheetHandle #sheetSummary::before { content: "▼"; }
   flex-shrink: 0;
 }
 body.sheet-open .stream-head { display: flex; }
-.stream-head #channels { flex-wrap: wrap; }
+.stream-head #channels { flex-wrap: wrap; margin-top: 6px; }
+#chanBox > summary { cursor: pointer; color: var(--muted); font-size: 12px; user-select: none; }
 .stream-head input[type="search"] {
   background: var(--panel-2); color: var(--text);
   border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font: inherit;
@@ -228,6 +230,10 @@ body.sheet-open .stream-head { display: flex; }
 .pp-row { color: #333; }
 .pp-src { margin-top: 6px; padding-top: 6px; border-top: 1px solid #ddd; font-size: 12px; max-height: 160px; overflow-y: auto; }
 .pp-src a { color: #0067d6; text-decoration: none; }
+/* sources list, folded behind "Sources (N)" - closed by default on a phone */
+.pp-src-box { margin-top: 6px; padding-top: 6px; border-top: 1px solid #ddd; }
+.pp-src-box > summary { cursor: pointer; font-size: 12px; color: #555; user-select: none; }
+.pp-src-box .pp-src { margin-top: 4px; padding-top: 0; border-top: none; }
 /* on a phone the whole popup is tappable to open that report in the feed */
 .pp-feedhint { display: none; }
 body:not(.is-desktop) .leaflet-popup-content.pp-tap { cursor: pointer; }
@@ -253,6 +259,8 @@ body:not(.is-desktop) .pp-feedhint {
 }
 .map-dark .pp-row { color: var(--muted); }
 .map-dark .pp-src { border-top-color: var(--line); }
+.map-dark .pp-src-box { border-top-color: var(--line); }
+.map-dark .pp-src-box > summary { color: var(--muted); }
 .map-dark .pp-src a,
 .map-dark .leaflet-popup-content a { color: var(--accent); }
 .map-dark .leaflet-bar a {

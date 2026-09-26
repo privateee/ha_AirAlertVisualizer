@@ -17,6 +17,13 @@ let clusters = [];
 let lastMsgs = [];
 let timer = null;
 let freshBoot = false;                  // freshness ticker installed once
+// request tokens: a slow response from an older refresh (e.g. the timer tick
+// that was already in flight when Fetch was pressed) must not overwrite the
+// newer data that has already been drawn
+let clustersSeq = 0;
+let msgsSeq = 0;
+let rendering = false;                  // true while renderClusters rebuilds layers
+const NO_STORE = { cache: "no-store" };
 let seenIds = null;                     // cluster ids seen on a previous poll
 let audioCtx = null;
 
@@ -42,7 +49,8 @@ const I18N = {
   en: {
     brand: "DroneVisualizer", area: "Area", window: "Window", live: "Live",
     fetch: "Fetch", feed: "Feed", filterText: "filter text…", now: "now",
-    threats: "Threats", options: "Options", showInFeed: "show in feed →",
+    threats: "Threats", options: "Options", showInFeed: "show in feed →", sources: "Sources",
+    newPosts: "new posts", noNewPosts: "no new posts",
     myloc: "My location", locating: "locating…",
     locpin: "You", inFeed: "in feed", new: "new", tracks: "tracks",
     updated: "updated", stale: "no updates for", offline: "server offline",
@@ -56,7 +64,8 @@ const I18N = {
   uk: {
     brand: "DroneVisualizer", area: "Регіон", window: "Період", live: "Наживо",
     fetch: "Оновити", feed: "Стрічка", filterText: "пошук у тексті…", now: "зараз",
-    threats: "Загрози", options: "Опції", showInFeed: "показати у стрічці →",
+    threats: "Загрози", options: "Опції", showInFeed: "показати у стрічці →", sources: "Джерела",
+    newPosts: "нових повідомлень", noNewPosts: "нових немає",
     myloc: "Моє місце", locating: "визначення…",
     locpin: "Ви", inFeed: "у стрічці", new: "нових", tracks: "цілей",
     updated: "оновлено", stale: "немає оновлень", offline: "сервер недоступний",
@@ -77,6 +86,7 @@ function applyI18n() {
   $$("[data-i18n-ph]").forEach((el) => { el.placeholder = t(el.dataset.i18nPh); });
   const lb = $("#lang");
   if (lb) { lb.textContent = lang.toUpperCase(); lb.title = "Language / Мова"; }
+  if (CFG) updateChanSummary();
 }
 
 // ---------------------------------------------------------------- layout
@@ -183,7 +193,7 @@ function clusterConfidence(c) {
 
 // ---------------------------------------------------------------- boot
 async function init() {
-  const resp = await fetch("api/config");
+  const resp = await fetch("api/config", NO_STORE);
   if (!resp.ok) throw new Error("HTTP " + resp.status);
   CFG = await resp.json();
 
@@ -202,6 +212,11 @@ async function init() {
 
     const tbox = $("#threatsBox");
     if (tbox && lsGet("threatsOpen") === "0") tbox.open = false;
+    const cbox = $("#chanBox");
+    if (cbox) {
+      const saved = lsGet(isMobile() ? "chanOpen:m" : "chanOpen:d");
+      cbox.open = saved === null ? !isMobile() : saved === "1";
+    }
     const obox = $("#optsBox");
     if (obox && lsGet("optsOpen") === "1") obox.open = true;
 
@@ -289,16 +304,29 @@ function buildChannelChips() {
   box.innerHTML = "";
   for (const ch of CFG.channels) {
     const el = document.createElement("label");
-    el.className = "chip";
+    el.className = "chip" + (state.channelsOff.has(ch) ? " off" : "");
     el.textContent = ch;
     el.addEventListener("click", () => {
       state.channelsOff.has(ch) ? state.channelsOff.delete(ch) : state.channelsOff.add(ch);
       el.classList.toggle("off");
+      updateChanSummary();
       loadMessages();
       renderClusters();
     });
     box.appendChild(el);
   }
+  updateChanSummary();
+}
+
+// The channel chips fold away (by default on a phone, where they took two
+// rows of the feed). The summary still says when some channels are hidden,
+// so a folded filter is never invisible.
+function updateChanSummary() {
+  const s = $("#chanSummary");
+  if (!s) return;
+  const total = CFG.channels.length;
+  const on = total - CFG.channels.filter((c) => state.channelsOff.has(c)).length;
+  s.textContent = `${t("sources")} (${on === total ? total : on + "/" + total})`;
 }
 
 function closeDrawer() { document.body.classList.remove("filters-open"); }
@@ -331,9 +359,27 @@ function wire() {
   });
   $("#live").addEventListener("change", (e) => { state.live = e.target.checked; startTimer(); });
   $("#ingestBtn").addEventListener("click", async () => {
+    const btn = $("#ingestBtn");
+    if (btn.disabled) return;                  // no double-submit
+    btn.disabled = true;
     setStatus("fetching…");
-    try { await fetch("api/ingest", { method: "POST" }); } catch (_) {}
+    let added = null;
+    try {
+      // the server now waits for an in-flight background poll instead of
+      // skipping, so this returns only once the new posts are really stored
+      const r = await fetch("api/ingest", { method: "POST", cache: "no-store" });
+      if (r.ok) {
+        const d = await r.json();
+        added = Object.values(d.ingested || {}).reduce((a, b) => a + b, 0);
+      }
+    } catch (_) {}
     await refresh();
+    startTimer();                              // next auto-poll a full interval from now
+    btn.disabled = false;
+    if (added !== null) {
+      setStatus(`${clusters.length} ${t("tracks")} · ` +
+        (added ? `+${added} ${t("newPosts")}` : t("noNewPosts")));
+    }
   });
   $("#theme").addEventListener("click", () => {
     applyMapTheme(state.mapTheme === "dark" ? "light" : "dark");
@@ -341,6 +387,9 @@ function wire() {
   $("#layout").addEventListener("click", cycleLayout);
   $("#threatsBox")?.addEventListener("toggle", (e) => {
     lsSet("threatsOpen", e.target.open ? "1" : "0");
+  });
+  $("#chanBox")?.addEventListener("toggle", (e) => {
+    lsSet(isMobile() ? "chanOpen:m" : "chanOpen:d", e.target.open ? "1" : "0");
   });
   $("#optsBox")?.addEventListener("toggle", (e) => {
     lsSet("optsOpen", e.target.open ? "1" : "0");
@@ -366,7 +415,17 @@ function wire() {
     deb = setTimeout(() => { state.q = e.target.value.trim(); loadMessages(); }, 300);
   });
 
-  map.on("popupclose", () => { if (state.pinned) { state.pinned = null; markPinned(); } });
+  map.on("popupclose", () => {
+    if (rendering) return;          // renderClusters rebuilding layers, not the user
+    if (state.pinned) { state.pinned = null; markPinned(); }
+  });
+
+  // HA companion app / a background tab: timers are throttled or frozen while
+  // hidden, so coming back used to show the map as it was when you left
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || !state.live || !CFG) return;
+    if (Date.now() - state.lastUpdate > 15000) { refresh(); startTimer(); }
+  });
 
   // tapping the map closes a raised feed sheet, so it's never a dead end
   map.on("click", closeSheet);
@@ -438,10 +497,12 @@ async function loadClusters() {
   p.set("since", "-" + state.window);
   const on = CFG.threats.map((th) => th.slug).filter((s) => !state.threatsOff.has(s));
   if (on.length && on.length !== CFG.threats.length) p.set("threats", on.join(","));
+  const seq = ++clustersSeq;
   try {
-    const resp = await fetch("api/clusters?" + p);
+    const resp = await fetch("api/clusters?" + p, NO_STORE);
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
+    if (seq !== clustersSeq) return;         // a newer request already drew
     const prev = clusters;
     clusters = data.clusters || [];
     detectNew(prev);
@@ -465,8 +526,10 @@ async function loadMessages() {
   p.set("since", "-" + (windowMs() < 6 * 36e5 ? "6h" : state.window));
   if (state.q) p.set("q", state.q);
   p.set("limit", "250");
+  const seq = ++msgsSeq;
   try {
-    const data = await (await fetch("api/messages?" + p)).json();
+    const data = await (await fetch("api/messages?" + p, NO_STORE)).json();
+    if (seq !== msgsSeq) return;             // superseded by a newer request
     lastMsgs = data.messages || [];
     renderMessages(lastMsgs);
   } catch (e) { /* keep old list */ }
@@ -508,14 +571,25 @@ function pulse(lat, lon, color) {
 
 // ---------------------------------------------------------------- render: map
 function renderClusters() {
+  // Rebuilding every layer closes whatever popup is open, which used to both
+  // make it vanish on each poll and clear the pin. Remember it, reopen below.
+  const reopenId = state.pinned;
+  rendering = true;
   layer.clearLayers();
-  const cutoff = asOfDate().getTime();
+  rendering = false;
+  // At "now" the server's window is the only filter. Comparing post times to
+  // this device's clock hid brand-new markers whenever the clock ran even a
+  // few seconds behind real time - they only showed up after reloading the
+  // page later (e.g. switching HA panels back and forth).
+  const live = state.asOf >= 0.999;
+  const cutoff = live ? Date.now() : asOfDate().getTime();
+  let reopenMarker = null;
   const winMin = windowMs() / 60000;
   const offCh = state.channelsOff;
 
   for (const c of clusters) {
     if (c.lat == null) continue;
-    if (new Date(c.last_posted_at).getTime() > cutoff) continue;
+    if (!live && new Date(c.last_posted_at).getTime() > cutoff) continue;
     if (offCh.size && c.channels.every((ch) => offCh.has(ch))) continue;
 
     const age = Math.max(0, (cutoff - new Date(c.last_posted_at).getTime()) / 60000);
@@ -563,19 +637,32 @@ function renderClusters() {
     const m = L.circleMarker([c.lat, c.lon], {
       radius: r, color: c.color, weight: 2, opacity: op,
       fillColor: c.color, fillOpacity: 0.5 * op,
-    }).bindPopup(popupHtml(c), { maxWidth: 320 });
+    }).bindPopup(() => popupHtml(c), { maxWidth: 320 });  // built on open, not per marker per poll
     // marker tap: show the popup + remember this cluster. On desktop the feed
     // scrolls to its message right away; on mobile the feed only rises when the
     // user taps the popup (see wirePopupToFeed) - the popup already shows the
     // message text, so raising the sheet on top of it would just be redundant.
     m.on("click", () => { state.pinned = c.id; markPinned(c); });
-    m.on("popupopen", (e) => wirePopupToFeed(e.popup));
+    m.on("popupopen", (e) => wirePopup(e.popup));
+    if (c.id === reopenId) reopenMarker = m;
     if (badge) {
       m.bindTooltip(badge, {
         permanent: true, direction: "center", className: "count-badge",
       });
     }
     m.addTo(layer);
+  }
+  if (reopenMarker) {
+    // reopen without panning the map under the user on every poll
+    const pp = reopenMarker.getPopup();
+    const autoPan = pp.options.autoPan;
+    pp.options.autoPan = false;
+    rendering = true;
+    reopenMarker.openPopup();
+    rendering = false;
+    pp.options.autoPan = autoPan;
+  } else if (reopenId != null) {
+    state.pinned = null;                     // its cluster is gone (resolved / aged out)
   }
   markPinned(clusters.find((x) => x.id === state.pinned) || null);
 }
@@ -585,6 +672,7 @@ function popupHtml(c) {
   const dst = c.dest_name
     ? `<div class="pp-row">→ <b>${esc(c.dest_name)}</b>${c.compass ? " (" + c.compass + obs + ")" : ""}</div>`
     : (c.compass ? `<div class="pp-row">${t("heading")} ${c.compass}${obs}</div>` : "");
+  const n = (c.sources || []).length;
   const src = (c.sources || []).map((s) =>
     `<div>${esc(s.channel)} · <a href="${esc(s.url)}" target="_blank" rel="noopener">${fmtClock(new Date(s.posted_at))}</a>${s.count ? " · " + s.count + "×" : ""}${s.line ? " — " + esc(s.line) : ""}</div>`
   ).join("");
@@ -611,7 +699,7 @@ function popupHtml(c) {
     ${dst}
     ${hereRow}
     <div class="pp-row" style="color:#666">${esc((c.channels || []).join(", "))} · ${ageStr(c.age_minutes)}</div>
-    <div class="pp-src">${src}</div>
+    ${n ? `<details class="pp-src-box"${srcOpen() ? " open" : ""}><summary>${t("sources")} (${n})</summary><div class="pp-src">${src}</div></details>` : ""}
     <div class="pp-feedhint">${t("showInFeed")}</div>`;
 }
 
@@ -649,16 +737,34 @@ function scrollToPinned() {
   if (first) first.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
-// tapping a marker's popup (mobile only) raises the feed sheet to its message
-function wirePopupToFeed(popup) {
-  if (!isMobile()) return;
+// The popup's sources list is foldable: open by default on desktop, folded on
+// a phone where it used to take most of the screen. The last choice is
+// remembered per layout.
+function srcKey() { return isMobile() ? "srcOpen:m" : "srcOpen:d"; }
+function srcOpen() {
+  const v = lsGet(srcKey());
+  return v === null ? !isMobile() : v === "1";
+}
+
+// Wire a marker popup once per popup instance. Its content is rebuilt on every
+// open (lazy content), so listen on the stable content node - in the capture
+// phase, because "toggle" does not bubble.
+function wirePopup(popup) {
   const el = popup.getElement() &&
     popup.getElement().querySelector(".leaflet-popup-content");
-  if (!el || el.dataset.feedWired) return;
-  el.dataset.feedWired = "1";
+  if (!el || el.dataset.wired) return;
+  el.dataset.wired = "1";
+  el.addEventListener("toggle", (ev) => {
+    if (!ev.target.classList || !ev.target.classList.contains("pp-src-box")) return;
+    lsSet(srcKey(), ev.target.open ? "1" : "0");
+    popup.update();                          // resize / re-position after folding
+  }, true);
+  if (!isMobile()) return;
+  // mobile: tapping the popup body raises the feed sheet to its message
   el.classList.add("pp-tap");
   el.addEventListener("click", (ev) => {
-    if (ev.target.closest("a")) return;      // source links keep their own behaviour
+    // links open Telegram; the sources fold is its own control
+    if (ev.target.closest("a, .pp-src-box")) return;
     openSheet();
     scrollToPinned();
   });

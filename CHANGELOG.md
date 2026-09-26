@@ -2,6 +2,29 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.12 — 2026-09-26
+
+- **Fix: Refresh/Fetch sometimes didn't show new marks** until the HA page
+  was switched away and back. Causes fixed:
+  - live mode hid clusters whose last post looked "in the future" to a
+    device clock running slightly behind the server;
+  - a manual Fetch during a background poll was silently skipped and
+    returned "0 new" — it now waits for the poll and then ingests;
+  - out-of-order responses (a slow poll finishing after a manual refresh)
+    could overwrite newer data — stale responses are now dropped;
+  - timers are frozen while the HA companion app is backgrounded — the page
+    refreshes as soon as it becomes visible again if its data is >15 s old;
+  - all `/api/` responses are sent `Cache-Control: no-store` and fetched
+    with `cache: "no-store"`.
+- An open popup now stays open (and pinned) across data updates instead of
+  closing on every poll.
+- Popup "Sources (N)" is foldable — folded by default on mobile, remembered
+  per layout.
+- Feed channel chips fold behind "Sources (N)" — folded by default on
+  mobile; shows "(on/total)" while some channels are filtered out.
+- Fetch button shows a busy state and reports how many new posts arrived.
+- Popup content is built lazily on open (faster redraws with many tracks).
+
 ## 0.9.11 — 2026-09-22
 
 - **New `event.dronevis_detected` sensor.** Fires once per newly-seen

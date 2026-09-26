@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.12
+
+Fix: Refresh/Fetch sometimes didn't show new marks until you switched HA pages
+back and forth (device clock skew, Fetch skipped during a background poll,
+stale out-of-order responses, frozen timers in the background, caching).
+Open popups stay open across updates. On mobile, popup sources and the feed's
+channel chips are folded behind "Sources (N)". Fetch shows a busy state and
+the number of new posts.
+
 ## 0.9.11
 
 New `event.dronevis_detected` entity: fires once per newly-seen report, even

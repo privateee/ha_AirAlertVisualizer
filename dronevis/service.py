@@ -59,11 +59,21 @@ class Service:
             return removed
 
     # -- ingestion --------------------------------------------------------
-    async def ingest_once(self) -> dict:
+    async def ingest_once(self, wait: bool = False) -> dict:
         """Fetch new posts from every channel, parse + store them.
-        Returns ``{channel: new_post_count}`` (empty if a reparse is running)."""
-        if not self._writer.acquire(blocking=False):
-            log.info("ingest skipped - a reparse is in progress")
+        Returns ``{channel: new_post_count}``.
+
+        The scheduled poll (``wait=False``) just skips a tick if another writer
+        is busy. A user-pressed Fetch (``wait=True``) waits for it instead -
+        otherwise, pressing Fetch while the background poll was mid-run
+        returned instantly with nothing done, and the UI redrew stale data
+        until the next tick (up to a poll interval later)."""
+        if wait:
+            # blocking acquire off the event loop; a threading.Lock may be
+            # released from another thread, so the finally below still works
+            await asyncio.to_thread(self._writer.acquire)
+        elif not self._writer.acquire(blocking=False):
+            log.info("ingest skipped - another ingest or a reparse is running")
             return {}
         try:
             stats: dict[str, int] = {}

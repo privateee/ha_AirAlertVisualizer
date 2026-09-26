@@ -106,6 +106,16 @@ def create_app(cfg: Config | None = None):
             await service.aclose()
 
     app = FastAPI(title="DroneVisualizer", version=__version__, lifespan=lifespan)
+
+    # live data must never come from a cache - the HA companion app's WebView
+    # and some proxies will otherwise happily reuse a GET for /api/clusters
+    @app.middleware("http")
+    async def _no_store_api(request, call_next):
+        resp = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            resp.headers["Cache-Control"] = "no-store"
+        return resp
+
     db: Database = service.db
 
     # -- meta -----------------------------------------------------------
@@ -302,7 +312,7 @@ def create_app(cfg: Config | None = None):
     # -- actions --------------------------------------------------------
     @app.post("/api/ingest")
     async def api_ingest():
-        return {"ingested": await service.ingest_once()}
+        return {"ingested": await service.ingest_once(wait=True)}
 
     @app.post("/api/reparse")
     async def api_reparse(since_hours: float | None = None):
