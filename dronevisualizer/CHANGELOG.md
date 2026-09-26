@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.15
+
+Fix: on a phone, "show in feed →" in a marker popup slid the whole app up
+under HA's header, leaving nothing to tap to close it. The feed now scrolls
+only itself, and the page can no longer be scrolled at all. The feed also
+keeps your place when it refreshes instead of jumping back to the top.
+
 ## 0.9.14
 
 Fix: on a phone the HA app kept running the cached, broken 0.9.12 script

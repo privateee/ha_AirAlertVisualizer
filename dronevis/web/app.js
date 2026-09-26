@@ -126,8 +126,8 @@ WIDE_MQ.addEventListener("change", () => { if (layoutPref === "auto") applyLayou
 
 // -------------------------------------------------------------- bottom sheet
 // two states only: peeking (handle) <-> open. The handle just toggles.
-function openSheet() { document.body.classList.add("sheet-open"); }
-function closeSheet() { document.body.classList.remove("sheet-open"); }
+function openSheet() { document.body.classList.add("sheet-open"); unscrollPage(); }
+function closeSheet() { document.body.classList.remove("sheet-open"); unscrollPage(); }
 function toggleSheet() { document.body.classList.toggle("sheet-open"); }
 
 // ---------------------------------------------------------------- map theme
@@ -446,6 +446,9 @@ function wire() {
 
   // tapping the map closes a raised feed sheet, so it's never a dead end
   map.on("click", closeSheet);
+  window.addEventListener("scroll", unscrollPage);
+  document.body.addEventListener("scroll", unscrollPage);
+  $("#main").addEventListener("scroll", unscrollPage);
 }
 
 function startTimer() {
@@ -749,9 +752,23 @@ function markPinned(c) {
   if (c && !isMobile()) scrollToPinned();
 }
 
+// Scroll only the feed list. scrollIntoView() also scrolls every ancestor -
+// on iOS (HA app) that includes the page itself despite overflow:hidden, which
+// slid the whole app up under HA's header with no way to close the sheet.
 function scrollToPinned() {
   const first = $("#msgs .msg.pinned");
-  if (first) first.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  const ul = $("#msgs");
+  if (!first || !ul) return;
+  const top = ul.scrollTop + first.getBoundingClientRect().top - ul.getBoundingClientRect().top - 8;
+  ul.scrollTop = Math.max(0, top);           // instant: the sheet's slide is the motion
+}
+
+// The app never scrolls as a page - if anything (focus, a browser quirk)
+// shifts it, put it back so the header and sheet handle stay reachable.
+function unscrollPage() {
+  for (const el of [document.scrollingElement, document.body, $("#main")]) {
+    if (el && el.scrollTop) el.scrollTop = 0;
+  }
 }
 
 // The popup's sources list is foldable: open by default on desktop, folded on
@@ -794,6 +811,15 @@ function wirePopup(popup) {
 // ---------------------------------------------------------------- render: stream
 function renderMessages(msgs) {
   const ul = $("#msgs");
+  // Rebuilding the list resets its scroll, which threw the reader (and a
+  // "show in feed" jump) back to the top on every poll. Keep the message at
+  // the top of the view where it is; at the very top, stay there for new posts.
+  let anchor = null;
+  if (ul.scrollTop > 0) {
+    const top = ul.getBoundingClientRect().top;
+    const li = $$("#msgs .msg").find((x) => x.getBoundingClientRect().bottom > top);
+    if (li) anchor = { url: li.dataset.url, off: li.getBoundingClientRect().top - top };
+  }
   ul.innerHTML = "";
   const now = Date.now();
   for (const m of msgs) {
@@ -819,6 +845,10 @@ function renderMessages(msgs) {
     li.querySelector(".meta a").addEventListener("click", (ev) => ev.stopPropagation());
     if (located) li.addEventListener("click", () => showMessageOnMap(m));
     ul.appendChild(li);
+  }
+  if (anchor) {
+    const li = $$("#msgs .msg").find((x) => x.dataset.url === anchor.url);
+    if (li) ul.scrollTop += li.getBoundingClientRect().top - ul.getBoundingClientRect().top - anchor.off;
   }
 
   drawTimeline(msgs);

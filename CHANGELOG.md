@@ -2,6 +2,22 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.15 — 2026-09-26
+
+- **Fix: "show in feed →" on a phone slid the whole app up and stranded it**
+  (header and sheet handle off-screen, nothing closable until switching HA
+  pages). Two causes:
+  - `scrollIntoView()` scrolls every ancestor; on iOS that includes the
+    page, even with `overflow: hidden`. The feed list is now scrolled
+    directly, and `#main`/`body` use `overflow: clip` so nothing can
+    scroll the page (the sheet parked below the fold counted as scrollable
+    overflow). A scroll listener snaps the page back as a last resort.
+  - `#msgs` lacked `min-height: 0`, so a long post made the list outgrow
+    the sheet instead of scrolling inside it.
+- The feed keeps its place across polls: rebuilding the list used to throw
+  the reader (and a "show in feed" jump) back to the top every refresh. At
+  the very top it stays at the top, so new posts still show.
+
 ## 0.9.14 — 2026-09-26
 
 - **Fix: phones kept running the broken 0.9.12 code after updating.** The
