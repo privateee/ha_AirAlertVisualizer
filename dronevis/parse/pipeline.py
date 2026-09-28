@@ -20,7 +20,8 @@ from ..geo.gazetteer import Gazetteer, PlaceHit
 from ..geo.util import bearing_deg
 from ..log import get_logger
 from .directions import analyze, is_clear
-from .normalize import extract_count, fold, normalize, split_lines
+from .normalize import (HINT_CIRCLE, extract_count, fold, normalize, split_lines,
+                        strip_hints)
 from .threats import FAMILY, ThreatMatch, classify_line
 
 log = get_logger("parse")
@@ -68,6 +69,7 @@ class ParsedEvent:
     raw_line: str = ""
     parse_method: str = "rules"
     parse_confidence: float = 0.0
+    altitude_m: int | None = None
 
     @property
     def family(self) -> str:
@@ -83,8 +85,32 @@ class ParsedEvent:
             "dest_name": self.dest_name, "dest_lat": self.dest_lat,
             "dest_lon": self.dest_lon, "heading_deg": self.heading_deg,
             "raw_line": self.raw_line, "parse_method": self.parse_method,
-            "parse_confidence": self.parse_confidence,
+            "parse_confidence": self.parse_confidence, "altitude_m": self.altitude_m,
         }
+
+
+# Target altitude. Only unambiguous forms: an explicit "висота 400 м" /
+# "высота 1,5 км", or war_monitor's bare trailing "Чайки 400м" / "Теремки
+# 3,2км". A trailing number after "за / від / до / в ..." is a distance
+# ("за 10 км від Києва"), not a height.
+_ALT_EXPLICIT = re.compile(
+    r"\bвисот\w*\s*(?:~|до|близко|около|приблизно|бл\.?)?\s*(\d+(?:[.,]\d+)?)\s*(км|м)\b")
+_ALT_TRAILING = re.compile(
+    r"(?<!\bза\s)(?<!\bвид\s)(?<!\bот\s)(?<!\bдо\s)(?<!\bв\s)(?<!\bу\s)(?<!\bна\s)"
+    r"(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(км|м)\.?\s*$")
+
+
+def extract_altitude(folded_line: str) -> int | None:
+    """Altitude in metres from a *folded* line, or None."""
+    m = _ALT_EXPLICIT.search(folded_line) or _ALT_TRAILING.search(folded_line)
+    if not m:
+        return None
+    try:
+        v = float(m.group(1).replace(",", "."))
+    except ValueError:
+        return None
+    metres = v * 1000 if m.group(2) == "км" else v
+    return int(round(metres)) if 10 <= metres <= 15000 else None
 
 
 def _geo_conf(hit: PlaceHit | None, *, from_header: bool) -> float:
@@ -161,7 +187,7 @@ class Parser:
                     threat_type="clear", threat_raw=None, count=None,
                     status="clear", place_name=h.place.name,
                     lat=h.place.lat, lon=h.place.lon, geo_confidence=0.8,
-                    raw_line=line.strip()[:400], parse_method="rules",
+                    raw_line=strip_hints(line)[:400], parse_method="rules",
                     parse_confidence=0.7,
                 ))
                 continue
@@ -174,6 +200,8 @@ class Parser:
             if tm.slug == "unknown" and post_default_type:
                 tm = ThreatMatch(post_default_type, tm.raw, tm.start)
             dr = analyze(fline, hits)
+            if HINT_CIRCLE in fline and dr.status in ("moving", "unknown"):
+                dr.status = "circling"            # war_monitor's 🔄 marker
 
             # everything below works with plain (name, lat, lon) triples
             pos = _triple(dr.primary)
@@ -232,8 +260,9 @@ class Parser:
                 dest_lat=dest[1] if dest else None,
                 dest_lon=dest[2] if dest else None,
                 heading_deg=heading,
-                raw_line=line.strip()[:400],
+                raw_line=strip_hints(line)[:400],
                 parse_method="rules",
+                altitude_m=extract_altitude(fline),
             )
             ev.parse_confidence = _parse_conf(ev)
             events.append(ev)

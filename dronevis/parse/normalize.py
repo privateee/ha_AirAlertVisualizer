@@ -26,10 +26,35 @@ def strip_emoji(text: str) -> str:
     return _EMOJI_RE.sub(" ", text)
 
 
+# Some channels put the threat class *only* in an emoji: kpszsu "🏍 На
+# Мінський масив!" (🏍 = jet UAV, 🛵 = drone), war_monitor "🅿️1х Троєщина",
+# "🎮1х Совки 1,8км" (drone sightings), "🔻Зниження Либідська" (descending),
+# "🔄2х сектор Васильків" (circling). Stripping them as decoration left such
+# lines with no threat word, so they were dropped and whole attacks never
+# reached the map. They become hint tokens the classifier knows (threats.py,
+# pipeline.py); strip_hints() removes them for display. Marker emoji that
+# always come with the threat spelled out (💣 КАБ, ☄️ балістика, 🛸, 🛫)
+# need no hint.
+HINT_JET = "⟦jet⟧"
+HINT_UAV = "⟦uav⟧"
+HINT_CIRCLE = "⟦circ⟧"
+_EMOJI_HINTS = {
+    "🏍": HINT_JET, "🛵": HINT_UAV, "🅿": HINT_UAV, "🎮": HINT_UAV,
+    "🔻": HINT_UAV, "🔄": f"{HINT_UAV} {HINT_CIRCLE}",
+}
+_HINT_RE = re.compile("|".join(re.escape(h) for h in (HINT_JET, HINT_UAV, HINT_CIRCLE)))
+
+
+def strip_hints(text: str) -> str:
+    return _WS_RE.sub(" ", _HINT_RE.sub(" ", text)).strip()
+
+
 def normalize(text: str, *, keep_case: bool = False) -> str:
     """Canonical form for display / line splitting. Lower-cased unless
     ``keep_case``. Keeps the Ukrainian/Russian alphabets distinct."""
     text = unicodedata.normalize("NFKC", text)
+    for emo, hint in _EMOJI_HINTS.items():
+        text = text.replace(emo, f" {hint} ")
     text = strip_emoji(text)
     text = text.replace("ё", "е").replace("Ё", "Е")
     text = text.replace("’", "'").replace("‘", "'").replace("`", "'")

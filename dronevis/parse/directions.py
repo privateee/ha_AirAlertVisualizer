@@ -72,6 +72,9 @@ _MARKERS: list[tuple[str, list[re.Pattern]]] = [
 ]
 
 _LAUNCH_RX = re.compile(r"\b(пуск\w*|запуск\w*|старт\w*|зл[іи]т\w*|взлет\w*)\b", re.I)
+# "🔻Зниження Либідська", "Голосіїв зниження", "снижается" - losing height,
+# often right before a strike, so worth its own status
+_DESCENT_RX = re.compile(r"\b(знижен\w*|знижу\w*|снижен\w*|снижа\w*|п[іи]к[іи]ру\w*)\b", re.I)
 _IMPACT_RX = re.compile(r"\b(вибух\w*|прил[ьеі]т\w*|прил[оі]т\w*|детонац\w*|уражен\w*|"
                         r"работа\s+пво|збит\w*|сбит\w*)\b", re.I)
 _CLEAR_RX = re.compile(
@@ -227,6 +230,8 @@ def analyze(folded_line: str, hits: list[PlaceHit]) -> DirectionResult:
         status = "launch"
     elif _IMPACT_RX.search(folded_line):
         status = "impact"
+    elif _DESCENT_RX.search(folded_line):
+        status = "descending"
     elif _CLEAR_RX.search(folded_line):
         status = "clear"
     elif heading is not None or dest is not None or moved:

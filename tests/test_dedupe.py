@@ -207,3 +207,41 @@ def test_count_and_peak_tracked(db, deduper):
            (t0 + timedelta(minutes=6)).isoformat())
     row = db.query_one("SELECT count, count_max FROM cluster WHERE id=?", (cid,))
     assert row["count"] == 2 and row["count_max"] == 5
+
+
+def test_same_post_two_places_are_two_objects(db, deduper):
+    """war_monitor "🅿️1х Погреби / 🅿️1х Гостомель" in one post = two drones."""
+    t0 = datetime(2026, 9, 28, 16, 34, tzinfo=timezone.utc).isoformat()
+    rid = _raw(db, "war_monitor", 1, t0)
+    c1 = _store(db, deduper, rid, _ev(place_name="Погреби", lat=50.557, lon=30.644),
+                "war_monitor", t0)
+    c2 = _store(db, deduper, rid, _ev(place_name="Вишгород", lat=50.584, lon=30.489),
+                "war_monitor", t0)
+    assert c1 != c2
+
+
+def test_same_channel_fix_out_of_reach_is_another_object(db, deduper):
+    """Within the 20 km cross-channel radius, but a shahed can't cover 15 km
+    in one minute: the channel is reporting a second drone."""
+    t0 = datetime(2026, 9, 28, 16, 24, tzinfo=timezone.utc)
+    t1 = t0 + timedelta(minutes=1)
+    c1 = _store(db, deduper, _raw(db, "war_monitor", 1, t0.isoformat()),
+                _ev(place_name="Виноградар", lat=50.510, lon=30.410),
+                "war_monitor", t0.isoformat())
+    c2 = _store(db, deduper, _raw(db, "war_monitor", 2, t1.isoformat()),
+                _ev(place_name="Теремки", lat=50.368, lon=30.455),
+                "war_monitor", t1.isoformat())
+    assert c1 != c2
+
+
+def test_same_channel_consecutive_close_fixes_chain(db, deduper):
+    """Fast consecutive posts from one channel at nearby places = one path."""
+    t0 = datetime(2026, 9, 28, 16, 23, tzinfo=timezone.utc)
+    pts = [("Виноградар", 50.510, 30.410), ("Пріорка", 50.500, 30.440),
+           ("Куренівка", 50.485, 30.470)]
+    ids = []
+    for i, (name, la, lo) in enumerate(pts):
+        when = (t0 + timedelta(minutes=i)).isoformat()
+        ids.append(_store(db, deduper, _raw(db, "war_monitor", 10 + i, when),
+                          _ev(place_name=name, lat=la, lon=lo), "war_monitor", when))
+    assert len(set(ids)) == 1

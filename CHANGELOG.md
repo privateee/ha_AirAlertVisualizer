@@ -2,6 +2,33 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.16 — 2026-09-28
+
+- **Fix: attacks reported only with emoji never reached the map.** Channels
+  often put the threat class *only* in a marker emoji — kpszsu
+  "🏍 На Мінський масив!" (🏍 = jet UAV, 🛵 = drone), war_monitor
+  "🅿️1х Троєщина", "🎮1х Совки 1,8км", "🔻Зниження Либідська",
+  "🔄2х сектор Васильків". The emoji were stripped as decoration, the
+  lines had no threat word left and were dropped — a whole evening attack
+  on Kyiv produced 0 tracks. They're now read as the threat class (🔄 also
+  as circling). Emoji that always come with the threat spelled out
+  (💣, ☄️, 🛸, 🛫) need no mapping.
+- **Target altitude and descent.** "Чайки 400м", "Теремки 3,2км",
+  "на висоті 300 м" are parsed as altitude (a distance such as "за 10 км
+  від Києва" is not); "зниження" / "снижается" sets a new `descending`
+  status. Both are stored per report and per track, shown in the popup
+  ("↓ знижується · висота 400 м") and in the feed tags. Status words are
+  now translated.
+- **Tracking one channel's fixes.** A channel's own consecutive fixes must
+  be reachable at the threat's speed (5 km floor, `dedupe.same_channel_floor_km`);
+  out of reach is a second object even inside the 20 km cross-channel
+  radius, and two places in the same post are always two objects. A fix
+  within reach sticks to that channel's own track.
+- Gazetteer: Совки, Либідська, Проспект Науки, Биківня, Видубичі, Погреби
+  (village), "Солома" for Солом'янка.
+- After an update the last 48 h of stored posts are re-parsed once, so
+  parser fixes reach the existing map.
+
 ## 0.9.15 — 2026-09-26
 
 - **Fix: "show in feed →" on a phone slid the whole app up and stranded it**

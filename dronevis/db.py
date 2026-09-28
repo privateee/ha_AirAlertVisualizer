@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS event (
     raw_line        TEXT,
     parse_method    TEXT    NOT NULL DEFAULT 'rules',
     parse_confidence REAL   NOT NULL DEFAULT 0,
+    altitude_m      INTEGER,                -- reported target altitude
     cluster_id      INTEGER REFERENCES cluster(id) ON DELETE SET NULL,
     created_at      TEXT    NOT NULL
 );
@@ -84,6 +85,7 @@ CREATE TABLE IF NOT EXISTS cluster (
     event_count      INTEGER NOT NULL DEFAULT 0,     -- number of reports
     channels         TEXT    NOT NULL DEFAULT '[]',  -- json list
     resolved_at      TEXT,                           -- set when an "all clear" landed
+    altitude_m       INTEGER,                        -- latest reported altitude
     updated_at       TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_cluster_last   ON cluster (last_posted_at);
@@ -120,12 +122,15 @@ class Database:
 
     def _migrate(self) -> None:
         """Additive column migrations for databases created by older versions."""
-        have = {r["name"] for r in self._conn.execute("PRAGMA table_info(cluster)")}
-        for col, decl in (
-            ("count", "INTEGER"), ("count_max", "INTEGER"), ("resolved_at", "TEXT"),
+        for table, cols in (
+            ("cluster", (("count", "INTEGER"), ("count_max", "INTEGER"),
+                         ("resolved_at", "TEXT"), ("altitude_m", "INTEGER"))),
+            ("event", (("altitude_m", "INTEGER"),)),
         ):
-            if col not in have:
-                self._conn.execute(f"ALTER TABLE cluster ADD COLUMN {col} {decl}")
+            have = {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
+            for col, decl in cols:
+                if col not in have:
+                    self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
 
     def close(self) -> None:
         with self._lock:
@@ -293,7 +298,7 @@ class Database:
             "raw_message_id", "channel", "posted_at", "threat_type", "threat_raw",
             "count", "status", "place_name", "lat", "lon", "geo_confidence",
             "src_name", "src_lat", "src_lon", "dest_name", "dest_lat", "dest_lon",
-            "heading_deg", "raw_line", "parse_method", "parse_confidence",
+            "heading_deg", "raw_line", "parse_method", "parse_confidence", "altitude_m",
         )
         values = [e.get(c) for c in cols]
         placeholders = ",".join("?" * (len(cols) + 1))
@@ -319,7 +324,7 @@ class Database:
             "threat_type", "status", "first_posted_at", "last_posted_at",
             "centroid_lat", "centroid_lon", "place_name", "dest_name",
             "dest_lat", "dest_lon", "heading_deg", "count", "count_max",
-            "event_count", "channels",
+            "event_count", "channels", "altitude_m",
         )
         values = [c.get(x) for x in cols]
         placeholders = ",".join("?" * (len(cols) + 1))

@@ -81,6 +81,12 @@ def create_app(cfg: Config | None = None):
     async def lifespan(app: FastAPI):
         if cfg.poll.reparse_on_start:
             await asyncio.to_thread(service.reparse_all)
+        elif db.get_meta("parsed_by") != __version__:
+            # a new version usually means parser fixes: re-read the recent
+            # stored posts once, so the map isn't missing what the old parser
+            # dropped (cheap - two days of posts, not the whole history)
+            await asyncio.to_thread(service.reparse_since, 48)
+        db.set_meta("parsed_by", __version__)
         if publisher.start():
             await asyncio.to_thread(_publish_ha)
 
@@ -291,7 +297,7 @@ def create_app(cfg: Config | None = None):
             ph = ",".join("?" * len(ids))
             for e in db.query(
                 f"SELECT raw_message_id, threat_type, status, place_name, dest_name, "
-                f"heading_deg, count, lat, lon FROM event WHERE raw_message_id IN ({ph}) "
+                f"heading_deg, count, lat, lon, altitude_m FROM event WHERE raw_message_id IN ({ph}) "
                 f"ORDER BY id",
                 ids,
             ):
@@ -306,7 +312,7 @@ def create_app(cfg: Config | None = None):
                         "threat_type": e["threat_type"], "status": e["status"],
                         "place_name": e["place_name"], "dest_name": e["dest_name"],
                         "heading": compass(e["heading_deg"]), "count": e["count"],
-                        "lat": e["lat"], "lon": e["lon"],
+                        "lat": e["lat"], "lon": e["lon"], "altitude_m": e["altitude_m"],
                         "color": COLOR.get(e["threat_type"], "#888"),
                     }
                     for e in ev_by_msg.get(r["id"], [])
@@ -427,6 +433,7 @@ def _cluster_dto(c, evs) -> dict:
         "track": track,
         "count": c["count"],
         "count_max": c["count_max"],
+        "altitude_m": c["altitude_m"],
         "event_count": c["event_count"],
         "channels": _json(c["channels"]),
         "sources": [

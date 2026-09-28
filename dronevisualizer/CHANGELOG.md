@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.16
+
+Fix: attacks reported only with emoji ("🏍 На Мінський масив!", "🅿️1х
+Троєщина", "🔻Зниження Либідська") produced no map markers — the emoji
+were ignored, so e.g. an evening attack on Kyiv showed 0 tracks. They're now
+read as the threat type. New: target altitude ("400м", "3,2км") and
+"зниження" (descending) are shown in the popup and feed. One channel's rapid
+consecutive reports are chained into one path only when physically
+reachable. More Kyiv districts. Recent history is re-parsed once after the
+update.
+
 ## 0.9.15
 
 Fix: on a phone, "show in feed →" in a marker popup slid the whole app up

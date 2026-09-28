@@ -137,7 +137,7 @@ RULES: list[ThreatRule] = [
     ThreatRule(
         "jet_uav", 60,
         _rx(r"\bреактив", r"\bреакт[иі]вн", r"\bjet\b", r"\bджет\b",
-            r"шахед[\s-]*238", r"\bs[\s-]?238\b"),
+            r"шахед[\s-]*238", r"\bs[\s-]?238\b", r"⟦jet⟧"),
         anti=_rx(r"нереактив"),
         generic=set(),
     ),
@@ -149,6 +149,7 @@ RULES: list[ThreatRule] = [
         r"\bдрон", r"\bбезп[иі]лотник", r"\bбеспилотник",
         r"\bкам[иі]кадзе", r"\bнереактивн", r"\bнереакт[иі]вн",
         r"\bптах\w*\s+ворог",
+        r"⟦uav⟧",                     # 🛵 / 🅿️ / 🔻 channel markers (normalize.py)
     )),
 ]
 

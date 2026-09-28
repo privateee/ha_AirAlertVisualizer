@@ -63,7 +63,9 @@ const I18N = {
     away: "away", connecting: "Connecting to the DroneVisualizer server…",
     cantReach: "Can't reach the DroneVisualizer server on this address.",
     startWith: "Start it with:  python -m dronevis run   — then this page reconnects automatically.",
-    retry: "retry",
+    retry: "retry", altitude: "alt",
+    st_moving: "moving", st_circling: "circling", st_descending: "descending",
+    st_launch: "launch", st_impact: "impact", st_clear: "clear", st_unknown: "spotted",
   },
   uk: {
     brand: "DroneVisualizer", area: "Регіон", window: "Період", live: "Наживо",
@@ -78,9 +80,20 @@ const I18N = {
     away: "від вас", connecting: "З'єднання із сервером DroneVisualizer…",
     cantReach: "Не вдається під'єднатися до сервера DroneVisualizer.",
     startWith: "Запустіть:  python -m dronevis run   — сторінка під'єднається сама.",
-    retry: "спроба",
+    retry: "спроба", altitude: "висота",
+    st_moving: "рухається", st_circling: "кружляє", st_descending: "знижується",
+    st_launch: "пуск", st_impact: "вибух", st_clear: "відбій", st_unknown: "помічено",
   },
 };
+
+// "400 м" / "3,2 км" in the current language
+function fmtAlt(m) {
+  if (m == null) return "";
+  const km = lang === "uk" ? "км" : "km", mm = lang === "uk" ? "м" : "m";
+  return m >= 1000
+    ? `${(m / 1000).toFixed(1).replace(/\.0$/, "").replace(".", lang === "uk" ? "," : ".")} ${km}`
+    : `${m} ${mm}`;
+}
 let lang = lsGet("lang") || ((navigator.language || "").startsWith("uk") ? "uk" : "en");
 if (!I18N[lang]) lang = "en";
 function t(k) { return (I18N[lang] && I18N[lang][k]) || I18N.en[k] || k; }
@@ -703,7 +716,10 @@ function popupHtml(c) {
   const reports = c.event_count > 1 ? `${c.event_count} ${t("reports")}` : "";
   const conf = clusterConfidence(c);
   const confStr = conf ? ` · ${Math.round(conf * 100)}%` : "";
-  const line2 = [size, esc(c.status), reports].filter(Boolean).join(" · ") + confStr;
+  const st = c.status === "descending"
+    ? `<b class="pp-desc">↓ ${t("st_descending")}</b>` : esc(t("st_" + c.status));
+  const alt = c.altitude_m != null ? `${t("altitude")} ${fmtAlt(c.altitude_m)}` : "";
+  const line2 = [size, st, alt, reports].filter(Boolean).join(" · ") + confStr;
 
   let hereRow = "";
   if (state.here) {
@@ -831,7 +847,8 @@ function renderMessages(msgs) {
     const located = (m.events || []).some((e) => e.lat != null);
     if (located) li.classList.add("locatable");
     const tags = (m.events || []).map((e) => {
-      const bits = [e.count ? e.count + "×" : "", e.place_name || "", e.dest_name ? "→ " + e.dest_name : "", e.heading || ""]
+      const bits = [e.count ? e.count + "×" : "", e.place_name || "", e.dest_name ? "→ " + e.dest_name : "", e.heading || "",
+        e.status === "descending" ? "↓" : "", e.altitude_m != null ? fmtAlt(e.altitude_m) : ""]
         .filter(Boolean).join(" ");
       return `<span class="tag"><span class="dot" style="background:${e.color}"></span>${esc(e.threat_type)}${bits ? " · " + esc(bits) : ""}</span>`;
     }).join("");

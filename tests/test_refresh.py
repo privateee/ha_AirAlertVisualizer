@@ -82,3 +82,30 @@ def test_page_links_versioned_assets(monkeypatch):
         assert f'href="style.css?v={__version__}"' in html, path
     assert client.get("/api/config").json()["version"] == __version__
     assert client.get(f"/app.js?v={__version__}").status_code == 200
+
+
+def test_new_version_reparses_recent_posts_once(monkeypatch):
+    """After an upgrade the stored recent posts are re-read with the new
+    parser once, so parser fixes reach the existing map."""
+    from fastapi.testclient import TestClient
+
+    from dronevis.api import create_app
+    from dronevis.service import Service
+
+    calls = []
+    monkeypatch.setattr(Service, "reparse_since",
+                        lambda self, hours: calls.append(hours) or {})
+    monkeypatch.setenv("DRONEVIS_DB_PATH", tempfile.mktemp(suffix=".db"))
+    cfg = load_config()
+    cfg.poll.reparse_on_start = False
+    monkeypatch.setattr("dronevis.service.Service.ingest_once",
+                        lambda self, wait=False: _noop())
+
+    for _ in range(2):                         # second start: same version
+        with TestClient(create_app(cfg)) as client:
+            assert client.get("/api/config").status_code == 200
+    assert calls == [48]
+
+
+async def _noop():
+    return {}

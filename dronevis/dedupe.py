@@ -68,6 +68,8 @@ class Deduper:
             if now - _dt(c["first_posted_at"]) > max_span:
                 continue
             score = self._score(ev, c, family, channel, gap / 60.0)
+            if score > 0:
+                score = self._same_channel_adjust(score, c, ev, event_id, channel, now)
             if score > best_score:
                 best_score, best_id = score, c["id"]
 
@@ -93,6 +95,46 @@ class Deduper:
         return -1
 
     # -- scoring --------------------------------------------------------
+    def _same_channel_adjust(
+        self, score: float, c, ev: ParsedEvent, event_id: int, channel: str,
+        now: datetime,
+    ) -> float:
+        """Check ``ev`` against this *channel's own* last fix in cluster ``c``.
+
+        A channel reporting an attack over a city posts a fix every minute or
+        two ("🅿️1х Виноградар", "🅿️1х Пріорка", ...). Its consecutive fixes are
+        one consistent observer, so:
+
+        * two different places in the *same post* are two objects;
+        * a fix out of reach of its previous one (speed x elapsed) is a
+          second object, even inside the 20 km "close by" radius that merges
+          reports from *different* channels;
+        * a fix within reach continues that channel's track - a small bonus,
+          so it sticks to its own track rather than a neighbouring one.
+        """
+        if ev.lat is None:
+            return score
+        last = self.db.query_one(
+            "SELECT lat, lon, posted_at, raw_message_id, place_name FROM event "
+            "WHERE cluster_id=? AND channel=? AND lat IS NOT NULL AND id<>? "
+            "ORDER BY posted_at DESC, id DESC LIMIT 1",
+            (c["id"], channel, event_id),
+        )
+        if last is None:
+            return score
+        d = haversine_km((last["lat"], last["lon"]), (ev.lat, ev.lon))
+        mine = self.db.query_one("SELECT raw_message_id FROM event WHERE id=?", (event_id,))
+        if (mine is not None and mine["raw_message_id"] == last["raw_message_id"]
+                and last["place_name"] != ev.place_name):
+            return 0.0
+        speed = max(self.cfg.speed_kmh.get(ev.threat_type, 220.0),
+                    self.cfg.speed_kmh.get(c["threat_type"], 220.0))
+        gap_h = max(0.0, (now - _dt(last["posted_at"])).total_seconds() / 3600.0)
+        reach = max(self.cfg.same_channel_floor_km, speed * gap_h * self.cfg.speed_slack)
+        if d > reach:
+            return 0.0
+        return min(0.99, score + 0.04)
+
     def _count_match(self, a, b) -> bool:
         return a is not None and b is not None and abs(a - b) <= self.cfg.count_tolerance
 
@@ -235,6 +277,7 @@ class Deduper:
             "count_max": ev.count,
             "event_count": 1,
             "channels": json.dumps([channel], ensure_ascii=False),
+            "altitude_m": ev.altitude_m,
         })
         self.db.set_event_cluster(event_id, cid)
         return cid
@@ -266,6 +309,8 @@ class Deduper:
             patch["status"] = ev.status
             if ev.count is not None:
                 patch["count"] = ev.count
+            if ev.altitude_m is not None:
+                patch["altitude_m"] = ev.altitude_m
             if ev.place_name:
                 patch["place_name"] = ev.place_name
             if ev.dest_name:

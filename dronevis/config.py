@@ -113,6 +113,10 @@ class DedupeConfig:
                                        # chains beyond this, whatever the gap
     heading_tolerance_deg: float = 55.0
     count_tolerance: int = 1           # |a-b| <= this counts as "same size"
+    # One channel's own consecutive fixes of an object must be reachable at
+    # its speed (never closer than this floor - place centres are imprecise).
+    # Out of reach = a second object, however close the places are.
+    same_channel_floor_km: float = 5.0
 
 
 @dataclass(slots=True)
@@ -288,6 +292,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         max_hop_km=float(dd.get("max_hop_km", 200.0)),
         heading_tolerance_deg=float(dd.get("heading_tolerance_deg", 55.0)),
         count_tolerance=int(dd.get("count_tolerance", 1)),
+        same_channel_floor_km=float(dd.get("same_channel_floor_km", 5.0)),
     )
 
     pr = raw.get("parse", {}) or {}
