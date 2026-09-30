@@ -202,6 +202,20 @@ body.sheet-open .stream-head { display: flex; }
   background: var(--panel-2); color: var(--text);
   border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font: inherit;
 }
+.stream-head input[type="search"][hidden] { display: none; }
+/* activity graph + feed buttons (auto-scroll to newest, search) in one row */
+.feed-tools { display: flex; align-items: center; gap: 6px; }
+.feed-tools #timeline { flex: 1; min-width: 0; }
+.feed-tools .icon-btn {
+  flex-shrink: 0; cursor: pointer;
+  background: var(--panel-2); color: var(--muted);
+  border: 1px solid var(--line); border-radius: 7px;
+  padding: 6px 8px; font: inherit; font-size: 14px; line-height: 1;
+}
+.feed-tools .icon-btn:hover { border-color: var(--accent); }
+.feed-tools .icon-btn[aria-pressed="true"],
+.feed-tools .icon-btn[aria-expanded="true"],
+.feed-tools .icon-btn.active { border-color: var(--accent); color: var(--accent); }
 
 /* min-height: 0 - without it a flex item is at least as tall as its content,
    so a long post made the list outgrow the sheet instead of scrolling */

@@ -63,7 +63,9 @@ const I18N = {
     away: "away", connecting: "Connecting to the DroneVisualizer server…",
     cantReach: "Can't reach the DroneVisualizer server on this address.",
     startWith: "Start it with:  python -m dronevis run   — then this page reconnects automatically.",
-    retry: "retry", altitude: "alt",
+    retry: "retry", altitude: "alt", search: "Search the feed",
+    autoTopOn: "Keep the feed at the newest post: on",
+    autoTopOff: "Keep the feed at the newest post: off",
     st_moving: "moving", st_circling: "circling", st_descending: "descending",
     st_launch: "launch", st_impact: "impact", st_clear: "clear", st_unknown: "spotted",
   },
@@ -80,7 +82,9 @@ const I18N = {
     away: "від вас", connecting: "З'єднання із сервером DroneVisualizer…",
     cantReach: "Не вдається під'єднатися до сервера DroneVisualizer.",
     startWith: "Запустіть:  python -m dronevis run   — сторінка під'єднається сама.",
-    retry: "спроба", altitude: "висота",
+    retry: "спроба", altitude: "висота", search: "Пошук у стрічці",
+    autoTopOn: "Тримати стрічку на найновішому: увімк.",
+    autoTopOff: "Тримати стрічку на найновішому: вимк.",
     st_moving: "рухається", st_circling: "кружляє", st_descending: "знижується",
     st_launch: "пуск", st_impact: "вибух", st_clear: "відбій", st_unknown: "помічено",
   },
@@ -104,6 +108,24 @@ function applyI18n() {
   const lb = $("#lang");
   if (lb) { lb.textContent = lang.toUpperCase(); lb.title = "Language / Мова"; }
   if (CFG) updateChanSummary();
+  updateFeedTools();
+}
+
+// ⤒ on: every refresh brings the feed back to the newest post (off: it keeps
+// your place). On by default - scrolling down to read used to mean missing
+// what arrived meanwhile.
+function autoTopOn() { return lsGet("autoTop") !== "0"; }
+
+function updateFeedTools() {
+  const at = $("#autoTop"), sb = $("#searchBtn"), s = $("#search");
+  if (at) {
+    at.setAttribute("aria-pressed", String(autoTopOn()));
+    at.title = t(autoTopOn() ? "autoTopOn" : "autoTopOff");
+  }
+  if (sb && s) {
+    sb.setAttribute("aria-expanded", String(!s.hidden));
+    sb.title = t("search");
+  }
 }
 
 // ---------------------------------------------------------------- layout
@@ -444,6 +466,22 @@ function wire() {
     clearTimeout(deb);
     deb = setTimeout(() => { state.q = e.target.value.trim(); loadMessages(); }, 300);
   });
+  // search is folded behind 🔍; closing it clears the filter, so a hidden
+  // search can never be silently filtering the feed
+  $("#searchBtn").addEventListener("click", () => {
+    const s = $("#search");
+    s.hidden = !s.hidden;
+    if (!s.hidden) { s.focus(); }
+    else if (s.value) { s.value = ""; state.q = ""; loadMessages(); }
+    updateFeedTools();
+  });
+  $("#autoTop").addEventListener("click", () => {
+    const on = !autoTopOn();
+    lsSet("autoTop", on ? "1" : "0");
+    if (on) $("#msgs").scrollTop = 0;
+    updateFeedTools();
+  });
+  updateFeedTools();
 
   map.on("popupclose", () => {
     if (rendering) return;          // renderClusters rebuilding layers, not the user
@@ -830,8 +868,11 @@ function renderMessages(msgs) {
   // Rebuilding the list resets its scroll, which threw the reader (and a
   // "show in feed" jump) back to the top on every poll. Keep the message at
   // the top of the view where it is; at the very top, stay there for new posts.
+  // ⤒ auto-scroll wins - except right after "show in feed" from a marker
+  // (state.pinned), which the next poll must not undo
+  const toTop = autoTopOn() && !state.pinned;
   let anchor = null;
-  if (ul.scrollTop > 0) {
+  if (!toTop && ul.scrollTop > 0) {
     const top = ul.getBoundingClientRect().top;
     const li = $$("#msgs .msg").find((x) => x.getBoundingClientRect().bottom > top);
     if (li) anchor = { url: li.dataset.url, off: li.getBoundingClientRect().top - top };
@@ -863,7 +904,9 @@ function renderMessages(msgs) {
     if (located) li.addEventListener("click", () => showMessageOnMap(m));
     ul.appendChild(li);
   }
-  if (anchor) {
+  if (toTop) {
+    ul.scrollTop = 0;
+  } else if (anchor) {
     const li = $$("#msgs .msg").find((x) => x.dataset.url === anchor.url);
     if (li) ul.scrollTop += li.getBoundingClientRect().top - ul.getBoundingClientRect().top - anchor.off;
   }

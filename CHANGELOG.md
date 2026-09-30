@@ -2,6 +2,16 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.17 — 2026-09-30
+
+- **Search folds behind 🔍** to the right of the feed's activity graph. It
+  opens focused; closing it clears the filter, so a hidden search never
+  silently filters the feed.
+- **⤒ keep the feed at the newest post** (on by default, remembered).
+  Every refresh brings the feed back to the top, so scrolling down to read
+  no longer means missing what arrived meanwhile. Off: the feed keeps your
+  place. Paused while a marker's "show in feed" jump is active.
+
 ## 0.9.16 — 2026-09-28
 
 - **Fix: attacks reported only with emoji never reached the map.** Channels

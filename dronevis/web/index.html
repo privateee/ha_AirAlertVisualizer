@@ -78,12 +78,16 @@
         <span id="sheetSummary" data-i18n="feed">Feed</span>
       </button>
       <div class="stream-head">
-        <div id="timeline" aria-hidden="true"></div>
+        <div class="feed-tools">
+          <div id="timeline" aria-hidden="true"></div>
+          <button id="autoTop" class="icon-btn" aria-pressed="false">⤒</button>
+          <button id="searchBtn" class="icon-btn" aria-expanded="false">🔍</button>
+        </div>
         <details id="chanBox">
           <summary id="chanSummary">Sources</summary>
           <div id="channels" class="chips"></div>
         </details>
-        <input type="search" id="search" data-i18n-ph="filterText" placeholder="filter text…" />
+        <input type="search" id="search" data-i18n-ph="filterText" placeholder="filter text…" hidden />
       </div>
       <ul id="msgs"></ul>
     </aside>

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.17
+
+Feed: search is folded behind a 🔍 button next to the activity graph (closing
+it clears the filter). New ⤒ toggle (on by default) keeps the feed at the
+newest post on every refresh, so you don't miss new messages after scrolling
+down; turn it off to keep your place.
+
 ## 0.9.16
 
 Fix: attacks reported only with emoji ("🏍 На Мінський масив!", "🅿️1х
