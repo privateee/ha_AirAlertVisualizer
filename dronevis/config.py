@@ -178,6 +178,9 @@ class AlarmConfig:
     min_confidence: float = 0.5
     in_area_only: bool = True
     active_minutes: int = 30            # a threat counts as "active" this long
+    # also count a track still outside the area whose projected course
+    # reaches it within this many minutes (0 = only what's already inside)
+    predict_minutes: int = 15
 
 
 @dataclass(slots=True)
@@ -332,6 +335,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         min_confidence=float(al.get("min_confidence", 0.5)),
         in_area_only=bool(al.get("in_area_only", True)),
         active_minutes=int(al.get("active_minutes", 30)),
+        predict_minutes=int(al.get("predict_minutes", 15)),
     )
 
     mq = raw.get("mqtt", {}) or {}
@@ -411,6 +415,8 @@ def _apply_env_overrides(cfg: Config) -> None:
         cfg.alarm.threats = [s.strip() for s in v.split(",") if s.strip()]
     if v := e("DRONEVIS_ALARM_MIN_CONFIDENCE"):
         cfg.alarm.min_confidence = float(v)
+    if v := e("DRONEVIS_ALARM_PREDICT_MINUTES"):
+        cfg.alarm.predict_minutes = int(float(v))
     if v := e("DRONEVIS_MQTT"):
         cfg.mqtt.enabled = v.lower()
     if v := e("DRONEVIS_MQTT_HOST"):

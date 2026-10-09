@@ -32,6 +32,7 @@ map with the message feed. Opens as a sidebar panel through HA **ingress**
 
 | `alarm_threats` | which threat types raise `binary_sensor.dronevis_alarm`. Slugs (`banderol`, `kalibr`, `x101`, `x22`, `cruise_missile`, `kinzhal`, `iskander`, `ballistic`, `shahed`, `jet_uav`, `recon_uav`, `kab`, `aircraft`) or a family name (`ballistic` → Kinzhal + Iskander + ballistic) |
 | `alarm_min_confidence` | ignore low-confidence parses for the alarm |
+| `alarm_predict_minutes` | early warning: also count a threat still **outside** the area when its projected course reaches the area centre within this many minutes (default 15, `0` = only threats already inside) |
 | `mqtt` | `auto` (use the Mosquitto broker add-on if installed), `true`, or `false` |
 
 The SQLite database lives in the add-on's `/data`, so it survives restarts
@@ -53,13 +54,15 @@ With the **Mosquitto broker** add-on installed, DroneVisualizer publishes a
 
 | Entity | Meaning |
 |---|---|
-| `binary_sensor.dronevis_<type>` | one per threat type — on when a cluster of that type has its position **or destination** inside your configured area. Attributes: `count`, `nearest_km`, `nearest_bearing`, `nearest_place`, `heading_to`, `sources`, `confidence`, `updated` |
+| `binary_sensor.dronevis_<type>` | one per threat type — on when a cluster of that type has its position **or destination** inside your configured area, or is on course to reach it within `alarm_predict_minutes`. Attributes: `count`, `nearest_km`, `nearest_bearing`, `nearest_place`, `heading_to`, `sources`, `confidence`, `updated`, `level`, `eta_min`, and per track in `cluster_detail` (`level`, `toward`, `eta_min`, `passes_km`) |
 | `binary_sensor.dronevis_danger` | any threat type on |
 | `binary_sensor.dronevis_alarm` | on only for the `alarm_threats` you listed, above `alarm_min_confidence`. Attribute `message` = a ready-to-speak string |
 | `sensor.dronevis_active` | active cluster count |
 | `sensor.dronevis_nearest_km` | distance to the nearest active threat |
+| `sensor.dronevis_threat_level` | `none` / `low` / `medium` / `high` for the area centre. **high**: within 10 km, descending within 25 km, or on course to arrive within 15 min; **medium**: on course within 45 min, or close in time with the direction unknown |
+| `sensor.dronevis_eta` | minutes until the nearest track that is on course for the area centre gets there (empty when none is) |
 | `sensor.dronevis_last_update` | timestamp of the latest report |
-| `event.dronevis_detected` | fires once for **every** newly-seen report, even while a `binary_sensor` is already on. `binary_sensor.dronevis_alarm` only re-triggers on an off→on edge, so a second shahed group reported while the first is still active won't refire it — this event does. Its `event_type` is the threat slug (`shahed`, `kinzhal`, …); attributes carry `place_name`, `count`, `dest_name`, `nearest_km`, `nearest_bearing`, `sources`, `confidence`. Silent on the first publish after a restart (so already-active threats don't all fire at once) |
+| `event.dronevis_detected` | fires once for **every** newly-seen report, even while a `binary_sensor` is already on. `binary_sensor.dronevis_alarm` only re-triggers on an off→on edge, so a second shahed group reported while the first is still active won't refire it — this event does. Its `event_type` is the threat slug (`shahed`, `kinzhal`, …); attributes carry `place_name`, `count`, `dest_name`, `nearest_km`, `nearest_bearing`, `sources`, `confidence`, `level`, `toward`, `eta_min`. Silent on the first publish after a restart (so already-active threats don't all fire at once) |
 
 Import `blueprints/automation/dronevis_alert.yaml` for a ready critical-push /
 TTS automation driven by `binary_sensor.dronevis_alarm`. For "notify me about

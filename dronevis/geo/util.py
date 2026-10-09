@@ -26,6 +26,17 @@ def bearing_deg(frm: tuple[float, float], to: tuple[float, float]) -> float:
     return (math.degrees(math.atan2(y, x)) + 360.0) % 360.0
 
 
+def dest_point(lat: float, lon: float, bearing: float, km: float) -> tuple[float, float]:
+    """The point ``km`` along the great circle from (lat, lon) at ``bearing``."""
+    d = km / EARTH_R_KM
+    br = math.radians(bearing)
+    la1, lo1 = math.radians(lat), math.radians(lon)
+    la2 = math.asin(math.sin(la1) * math.cos(d) + math.cos(la1) * math.sin(d) * math.cos(br))
+    lo2 = lo1 + math.atan2(math.sin(br) * math.sin(d) * math.cos(la1),
+                           math.cos(d) - math.sin(la1) * math.sin(la2))
+    return math.degrees(la2), (math.degrees(lo2) + 540.0) % 360.0 - 180.0
+
+
 _COMPASS = [
     "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
     "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",

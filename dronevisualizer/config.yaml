@@ -1,5 +1,5 @@
 name: "DroneVisualizer"
-version: "0.9.17"
+version: "0.9.18"
 slug: "dronevisualizer"
 description: "Ukrainian air-threat Telegram channels on a live map + HA sensors"
 url: "https://github.com/privateee/ha_AirAlertVisualizer"
@@ -30,6 +30,7 @@ options:
   alarm_threats:
     - ballistic
   alarm_min_confidence: 0.5
+  alarm_predict_minutes: 15
   mqtt: auto
   retain_days: 14
   log_level: info
@@ -49,6 +50,7 @@ schema:
   alarm_threats:
     - str
   alarm_min_confidence: float
+  alarm_predict_minutes: int(0,120)?
   mqtt: list(auto|true|false)
   retain_days: int(1,365)
   log_level: list(debug|info|warning|error)

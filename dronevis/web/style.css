@@ -8,6 +8,7 @@
   --accent: #4da3ff;
   --bar-h: 52px;
   --sheet-peek: 60px;
+  --sheet-gap: 40px;            /* map strip left above a fully raised sheet */
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 
@@ -143,28 +144,37 @@ body:not(.is-desktop) #freshness {
   backdrop-filter: blur(3px);
 }
 #scrub { flex: 1; accent-color: var(--accent); }
+/* phone: the sheet covers the bottom of the map, so the attribution moves up
+   above the history slider instead of hiding behind the sheet */
+body:not(.is-desktop) .leaflet-bottom { bottom: calc(var(--sheet-peek) + var(--safe-b) + 58px); }
 #scrubLabel { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 96px; text-align: right; }
 
 /* ============================================================ feed / bottom sheet */
 #stream {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  height: 78vh;
-  z-index: 800;
+  height: calc(100% - var(--sheet-gap));
+  z-index: 1050;               /* over Leaflet's zoom / attribution (1000), under the header */
   display: flex;
   flex-direction: column;
   background: var(--panel);
   border-top: 1px solid var(--line);
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -8px 30px rgba(0, 0, 0, .45);
-  transform: translateY(calc(78vh - var(--sheet-peek) - var(--safe-b)));
+  transform: translateY(calc(100% - var(--sheet-peek) - var(--safe-b)));
   transition: transform .28s cubic-bezier(.4, 0, .2, 1);
   will-change: transform;
   overflow: hidden;
 }
-/* two states: peeking (just the handle) and open. Open leaves a strip of map
-   at the top so a tap there can dismiss it. */
-body.sheet-open #stream { transform: translateY(0); }
+/* Peeking (just the handle) or open at any height: drag the handle to resize,
+   it stays where it's let go (snaps to peek / full near the ends, a flick
+   goes all the way). --sheet-y is how far below fully raised it sits (set
+   from JS). Fully raised still leaves a strip of map at the top, so a tap
+   there can dismiss it. */
+body.sheet-open #stream { transform: translateY(var(--sheet-y, 0px)); }
+body.sheet-dragging #stream { transition: none; }
+/* the part of the sheet pushed below the screen must not hide the last posts */
+body.sheet-open:not(.is-desktop) #msgs { padding-bottom: calc(var(--sheet-y, 0px) + var(--safe-b)); }
 
 #sheetHandle {
   all: unset;
@@ -172,10 +182,12 @@ body.sheet-open #stream { transform: translateY(0); }
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px 10px;
-  cursor: pointer;
+  padding: 10px 12px 12px;
+  cursor: grab;
   flex-shrink: 0;
+  touch-action: none;          /* the drag is ours, not a page scroll */
 }
+body.sheet-dragging #sheetHandle { cursor: grabbing; }
 #sheetHandle .grip {
   width: 40px; height: 4px; border-radius: 2px;
   background: var(--line);
@@ -321,6 +333,23 @@ body:not(.is-desktop) .pp-feedhint {
 }
 @keyframes fpulse { 50% { opacity: .55; } }
 
+/* the most urgent threat to you / the area (tap: show it) */
+#bar .danger-pill {
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+  padding: 5px 10px; border-radius: 999px;
+}
+#bar .danger-pill[hidden] { display: none; }
+#bar .danger-pill.medium { color: #ffcf5c; border-color: #8a6a1f; background: rgba(255, 183, 3, .12); }
+#bar .danger-pill.high {
+  color: #fff; background: #c62f24; border-color: #ff5a4e;
+  animation: fpulse 1.4s ease-in-out infinite;
+}
+.pp-danger { font-weight: 600; }
+.pp-danger.high { color: #e2493d !important; }
+.pp-danger.medium { color: #b7791f !important; }
+.map-dark .pp-danger.medium { color: #ffcf5c !important; }
+.map-dark .pp-danger.low { color: var(--accent) !important; }
+
 /* whole-screen flash when a new threat appears */
 body.flash #main::after {
   content: ""; position: absolute; inset: 0; z-index: 1200; pointer-events: none;
@@ -362,7 +391,6 @@ body.flash #main::after {
 .here-pin { font-size: 20px; line-height: 1; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
 #geo.on { border-color: var(--accent); color: var(--accent); }
 #geo.busy { opacity: .5; }
-.pp-here { color: var(--accent) !important; font-weight: 600; }
 
 /* feed rows tied to the clicked map marker */
 .msg.pinned { background: rgba(77,163,255,.14); box-shadow: inset 3px 0 0 var(--accent); }

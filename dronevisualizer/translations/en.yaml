@@ -63,6 +63,12 @@ configuration:
   alarm_min_confidence:
     name: Alarm minimum confidence
     description: Ignore parses below this confidence (0-1) for the alarm sensor.
+  alarm_predict_minutes:
+    name: Early warning (minutes)
+    description: >-
+      Also count a threat that is still outside the area when its projected
+      course reaches the area centre within this many minutes, so the sensors
+      turn on before it arrives. 0 = only threats already inside the area.
   mqtt:
     name: MQTT sensors
     description: >-

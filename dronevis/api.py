@@ -21,13 +21,14 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .areas import cluster_touches_area, in_area, resolve_area
+from .areas import area_center, cluster_touches_area, in_area, resolve_area
 from .config import Config, load_config
 from .db import Database
-from .geo.util import bearing_deg, compass, haversine_km
+from .geo.util import compass
 from .ha import HAPublisher, compute_state
 from .log import get_logger, setup_logging
 from .parse.threats import ALL_SLUGS, COLOR, FAMILY, LABEL, SHORT, SPEED_KMH
+from .predict import assess, cluster_motion, cone, dead_reckon
 from .service import Service
 
 log = get_logger("api")
@@ -49,6 +50,15 @@ def _parse_time(value: str | None, *, default_hours: float) -> datetime:
         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     except Exception:
         return now - timedelta(hours=default_hours)
+
+
+def _latlon(value: str | None) -> tuple[float, float] | None:
+    """``"50.45,30.52"`` -> (50.45, 30.52); anything else -> None."""
+    try:
+        lat, lon = (float(x) for x in (value or "").split(","))
+    except ValueError:
+        return None
+    return (lat, lon) if -90 <= lat <= 90 and -180 <= lon <= 180 else None
 
 
 def _csv(value: str | None) -> list[str] | None:
@@ -219,7 +229,10 @@ def create_app(cfg: Config | None = None):
         min_conf: float = 0.0,
         located_only: bool = True,
         include_resolved: bool = False,
+        ref: str | None = None,
     ):
+        """``ref=lat,lon`` (the viewer's location) is the point each track's
+        danger is assessed against; without it, the area's centre."""
         t0 = _parse_time(since, default_hours=6)
         t1 = _parse_time(until, default_hours=0) if until else datetime.now(timezone.utc)
         area_obj = resolve_area(cfg, area)
@@ -257,13 +270,23 @@ def create_app(cfg: Config | None = None):
             ):
                 by_cluster[e["cluster_id"]].append(e)
 
+        ref_pt, ref_kind = _latlon(ref), "here"
+        if ref_pt is None and area_obj is not None:
+            ref_pt, ref_kind = area_center(area_obj), "area"
+        now = datetime.now(timezone.utc)
         out = []
         for c in kept:
             evs = by_cluster.get(c["id"], [])
             if min_conf and max((e["parse_confidence"] for e in evs), default=0.0) < min_conf:
                 continue
-            out.append(_cluster_dto(c, evs))
-        return {"count": len(out), "clusters": out}
+            out.append(_cluster_dto(c, evs, speed_kmh=cfg.dedupe.speed_kmh,
+                                    ref=ref_pt, now=now,
+                                    max_age_min=cfg.alarm.active_minutes))
+        return {
+            "count": len(out), "clusters": out,
+            "ref": ({"lat": ref_pt[0], "lon": ref_pt[1], "kind": ref_kind}
+                    if ref_pt else None),
+        }
 
     @app.get("/api/messages")
     def api_messages(
@@ -381,14 +404,16 @@ def _json(text: str):
         return []
 
 
-def _cluster_dto(c, evs) -> dict:
+def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
+                 ref: tuple[float, float] | None = None,
+                 now: datetime | None = None,
+                 max_age_min: float | None = None) -> dict:
     """``evs`` is this cluster's events, newest first."""
+    now = now or datetime.now(timezone.utc)
     last = c["last_posted_at"]
     age_min = None
     try:
-        age_min = round(
-            (datetime.now(timezone.utc) - dtp.isoparse(last)).total_seconds() / 60, 1
-        )
+        age_min = round((now - dtp.isoparse(last)).total_seconds() / 60, 1)
     except Exception:
         pass
 
@@ -402,15 +427,13 @@ def _cluster_dto(c, evs) -> dict:
         if not track or track[-1] != pt:
             track.append(pt)
 
-    # heading from the last observed leg beats the parsed one when we have
-    # two genuinely separate positions
-    heading = c["heading_deg"]
-    observed = False
-    if len(track) >= 2:
-        a, b = track[-2], track[-1]
-        if haversine_km((a[0], a[1]), (b[0], b[1])) >= 4:
-            heading = bearing_deg((a[0], a[1]), (b[0], b[1]))
-            observed = True
+    # course / speed / uncertainty from the timed fixes (see predict.py)
+    m = cluster_motion(c, evs, speed_kmh or SPEED_KMH)
+    heading = m.heading_deg if m.heading_deg is not None else c["heading_deg"]
+    now_pos = dead_reckon(m, now)
+    motion = m.to_dict()
+    motion["now"] = [round(now_pos[0], 4), round(now_pos[1], 4)] if now_pos else None
+    motion["cone"] = [[round(p[0], 4), round(p[1], 4)] for p in cone(m)]
 
     return {
         "id": c["id"],
@@ -429,8 +452,10 @@ def _cluster_dto(c, evs) -> dict:
         "dest_lon": c["dest_lon"],
         "heading_deg": heading,
         "compass": compass(heading),
-        "heading_observed": observed,
+        "heading_observed": m.heading_src == "observed",
         "track": track,
+        "motion": motion,
+        "danger": assess(m, ref, now, max_age_min) if ref else None,
         "count": c["count"],
         "count_max": c["count_max"],
         "altitude_m": c["altitude_m"],

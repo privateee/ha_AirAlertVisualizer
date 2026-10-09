@@ -234,6 +234,8 @@ alarm:
   min_confidence: 0.5       # ignore low-confidence parses for the alarm
   in_area_only: true        # a threat counts if its position OR destination is in the area
   active_minutes: 30        # how long after the last report a threat stays "active"
+  predict_minutes: 15       # also count a track outside the area whose projected
+                            # course reaches it within this many minutes (0 = off)
 
 mqtt:
   enabled: auto             # auto (use the HA Supervisor's broker if present) | true | false

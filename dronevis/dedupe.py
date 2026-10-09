@@ -24,7 +24,7 @@ from .config import Config
 from .db import Database
 from .geo.util import bearing_deg, haversine_km
 from .parse.pipeline import ParsedEvent
-from .parse.threats import FAMILY
+from .parse.threats import FAMILY, MAX_SPEED_KMH
 
 
 def _dt(iso: str) -> datetime:
@@ -55,6 +55,11 @@ class Deduper:
         family = FAMILY.get(ev.threat_type, "unknown")
         max_span = timedelta(minutes=self.cfg.max_span_minutes)
 
+        # the post this event came from - same for every candidate cluster
+        mine = (self.db.query_one("SELECT raw_message_id FROM event WHERE id=?", (event_id,))
+                if ev.lat is not None else None)
+        raw_id = mine["raw_message_id"] if mine is not None else None
+
         best_id: int | None = None
         best_score = 0.0
         for c in self.db.open_clusters(since):
@@ -69,7 +74,7 @@ class Deduper:
                 continue
             score = self._score(ev, c, family, channel, gap / 60.0)
             if score > 0:
-                score = self._same_channel_adjust(score, c, ev, event_id, channel, now)
+                score = self._same_channel_adjust(score, c, ev, event_id, raw_id, channel, now)
             if score > best_score:
                 best_score, best_id = score, c["id"]
 
@@ -96,8 +101,8 @@ class Deduper:
 
     # -- scoring --------------------------------------------------------
     def _same_channel_adjust(
-        self, score: float, c, ev: ParsedEvent, event_id: int, channel: str,
-        now: datetime,
+        self, score: float, c, ev: ParsedEvent, event_id: int, raw_id: int | None,
+        channel: str, now: datetime,
     ) -> float:
         """Check ``ev`` against this *channel's own* last fix in cluster ``c``.
 
@@ -123,17 +128,21 @@ class Deduper:
         if last is None:
             return score
         d = haversine_km((last["lat"], last["lon"]), (ev.lat, ev.lon))
-        mine = self.db.query_one("SELECT raw_message_id FROM event WHERE id=?", (event_id,))
-        if (mine is not None and mine["raw_message_id"] == last["raw_message_id"]
+        if (raw_id is not None and raw_id == last["raw_message_id"]
                 and last["place_name"] != ev.place_name):
             return 0.0
-        speed = max(self.cfg.speed_kmh.get(ev.threat_type, 220.0),
-                    self.cfg.speed_kmh.get(c["threat_type"], 220.0))
+        speed = max(self._reach_kmh(ev.threat_type), self._reach_kmh(c["threat_type"]))
         gap_h = max(0.0, (now - _dt(last["posted_at"])).total_seconds() / 3600.0)
-        reach = max(self.cfg.same_channel_floor_km, speed * gap_h * self.cfg.speed_slack)
+        reach = max(self.cfg.same_channel_floor_km, speed * gap_h)
         if d > reach:
             return 0.0
         return min(0.99, score + 0.04)
+
+    def _reach_kmh(self, slug: str) -> float:
+        """Fastest this type plausibly covers ground: cruise x slack, or its
+        top speed where that's higher (a jet UAV's 900 km/h dash)."""
+        cruise = self.cfg.speed_kmh.get(slug, 220.0) * self.cfg.speed_slack
+        return max(cruise, MAX_SPEED_KMH.get(slug, 0.0))
 
     def _count_match(self, a, b) -> bool:
         return a is not None and b is not None and abs(a - b) <= self.cfg.count_tolerance
@@ -225,8 +234,7 @@ class Deduper:
         #    (~330 km) fails this for anything slower than a ballistic missile.
         if d > self.cfg.max_hop_km:
             return 0.0
-        speed = self.cfg.speed_kmh.get(ev.threat_type, 220.0)
-        reach = speed * (gap_min / 60.0) * self.cfg.speed_slack
+        reach = self._reach_kmh(ev.threat_type) * (gap_min / 60.0)
         reach = min(max(reach, self.cfg.distance_km), self.cfg.max_hop_km)
         if d > reach:
             return 0.0

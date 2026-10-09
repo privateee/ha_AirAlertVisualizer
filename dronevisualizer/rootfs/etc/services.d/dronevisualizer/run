@@ -20,6 +20,9 @@ export DRONEVIS_RETAIN_DAYS="$(bashio::config 'retain_days')"
 
 export DRONEVIS_ALARM_THREATS="$(bashio::config 'alarm_threats' | paste -sd, -)"
 export DRONEVIS_ALARM_MIN_CONFIDENCE="$(bashio::config 'alarm_min_confidence')"
+if bashio::config.has_value 'alarm_predict_minutes'; then
+  export DRONEVIS_ALARM_PREDICT_MINUTES="$(bashio::config 'alarm_predict_minutes')"
+fi
 export DRONEVIS_MQTT="$(bashio::config 'mqtt')"
 
 # hand the Supervisor's MQTT broker (Mosquitto add-on) to the app

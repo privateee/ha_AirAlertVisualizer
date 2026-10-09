@@ -17,6 +17,7 @@ let tileLayer = null;
 const layer = L.layerGroup();
 const fxLayer = L.layerGroup();        // transient "new threat" pulses
 let hereMarker = null;
+const markerById = new Map();           // cluster id -> its map marker (this render)
 let clusters = [];
 let lastMsgs = [];
 let timer = null;
@@ -29,6 +30,8 @@ let msgsSeq = 0;
 let rendering = false;                  // true while renderClusters rebuilds layers
 const NO_STORE = { cache: "no-store" };
 let seenIds = null;                     // cluster ids seen on a previous poll
+let highIds = null;                     // ... that were already "high" danger
+let dangerRef = null;                   // {lat, lon, kind: "here"|"area"} from the server
 let audioCtx = null;
 
 const state = {
@@ -68,6 +71,9 @@ const I18N = {
     autoTopOff: "Keep the feed at the newest post: off",
     st_moving: "moving", st_circling: "circling", st_descending: "descending",
     st_launch: "launch", st_impact: "impact", st_clear: "clear", st_unknown: "spotted",
+    you: "you", towardYou: "toward", movingAway: "moving away", passes: "passes",
+    kmh: "km/h", observedSpeed: "observed", from: "from", min: "min",
+    lvl_high: "high danger", lvl_medium: "danger", lvl_low: "",
   },
   uk: {
     brand: "DroneVisualizer", area: "Регіон", window: "Період", live: "Наживо",
@@ -87,6 +93,9 @@ const I18N = {
     autoTopOff: "Тримати стрічку на найновішому: вимк.",
     st_moving: "рухається", st_circling: "кружляє", st_descending: "знижується",
     st_launch: "пуск", st_impact: "вибух", st_clear: "відбій", st_unknown: "помічено",
+    you: "вас", towardYou: "на", movingAway: "віддаляється", passes: "мине за",
+    kmh: "км/г", observedSpeed: "за треком", from: "від", min: "хв",
+    lvl_high: "висока небезпека", lvl_medium: "небезпека", lvl_low: "",
   },
 };
 
@@ -160,10 +169,90 @@ function cycleLayout() {
 WIDE_MQ.addEventListener("change", () => { if (layoutPref === "auto") applyLayout(); });
 
 // -------------------------------------------------------------- bottom sheet
-// two states only: peeking (handle) <-> open. The handle just toggles.
-function openSheet() { document.body.classList.add("sheet-open"); unscrollPage(); }
+// Peeking (just the handle) or open at any height. Drag the handle to resize:
+// the sheet stays where it's let go - near the bottom it closes, near the top
+// it goes fully up, and a quick flick goes all the way. A tap toggles between
+// peeking and the last open height (remembered).
+const SHEET_SNAP_PX = 56;               // released this close to an end -> snap
+const SHEET_FLICK = 0.6;                // px/ms - a flick, not a slow drag
+// 0 = fully raised .. 1 = all the way down to the peek
+let sheetFrac = (() => {
+  const v = parseFloat(lsGet("sheetFrac"));
+  return v >= 0 && v < 0.9 ? v : 0;
+})();
+let sheetNoClickUntil = 0;              // swallow the click that ends a drag
+
+const sheetIsOpen = () => document.body.classList.contains("sheet-open");
+
+// how far the sheet travels between fully raised and peeking, in px. The peek
+// is var(--sheet-peek) + the iOS safe area, which only CSS can resolve.
+function sheetRange() {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;visibility:hidden;" +
+    "height:calc(var(--sheet-peek) + var(--safe-b))";
+  document.body.appendChild(probe);
+  const peek = probe.offsetHeight;
+  probe.remove();
+  return Math.max(0, $("#stream").offsetHeight - peek);
+}
+function setSheetY(px) {
+  document.body.style.setProperty("--sheet-y", Math.round(px) + "px");
+}
+function applySheet() { if (isMobile()) setSheetY(sheetFrac * sheetRange()); }
+
+function openSheet() { applySheet(); document.body.classList.add("sheet-open"); unscrollPage(); }
 function closeSheet() { document.body.classList.remove("sheet-open"); unscrollPage(); }
-function toggleSheet() { document.body.classList.toggle("sheet-open"); }
+function toggleSheet() {
+  if (performance.now() < sheetNoClickUntil) return;
+  sheetIsOpen() ? closeSheet() : openSheet();
+}
+
+function wireSheetDrag() {
+  const h = $("#sheetHandle");
+  let d = null;
+  h.addEventListener("pointerdown", (e) => {
+    if (!isMobile() || d || (e.pointerType === "mouse" && e.button !== 0)) return;
+    const range = sheetRange();
+    d = {
+      id: e.pointerId, y0: e.clientY, range, moved: false,
+      start: sheetIsOpen() ? sheetFrac * range : range,
+      y: 0, lastY: e.clientY, lastT: e.timeStamp, v: 0,
+    };
+    try { h.setPointerCapture(e.pointerId); } catch (_) {}   // keep moves coming off the handle
+  });
+  h.addEventListener("pointermove", (e) => {
+    if (!d || e.pointerId !== d.id) return;
+    const dy = e.clientY - d.y0;
+    if (!d.moved) {
+      if (Math.abs(dy) < 6) return;           // still a tap
+      d.moved = true;
+      document.body.classList.add("sheet-open", "sheet-dragging");
+    }
+    const dt = e.timeStamp - d.lastT;
+    if (dt > 0) d.v = 0.6 * ((e.clientY - d.lastY) / dt) + 0.4 * d.v;
+    d.lastY = e.clientY; d.lastT = e.timeStamp;
+    d.y = Math.min(d.range, Math.max(0, d.start + dy));
+    setSheetY(d.y);
+  });
+  const end = (e) => {
+    if (!d || e.pointerId !== d.id) return;
+    const g = d;
+    d = null;
+    document.body.classList.remove("sheet-dragging");
+    if (!g.moved) return;                     // a tap: the click handler toggles
+    sheetNoClickUntil = performance.now() + 350;
+    const v = e.timeStamp - g.lastT > 120 ? 0 : g.v;   // paused before letting go
+    if (v > SHEET_FLICK || g.y > g.range - SHEET_SNAP_PX) { closeSheet(); return; }
+    const y = v < -SHEET_FLICK || g.y < SHEET_SNAP_PX ? 0 : g.y;
+    sheetFrac = g.range ? y / g.range : 0;
+    lsSet("sheetFrac", sheetFrac.toFixed(3));
+    setSheetY(y);
+  };
+  h.addEventListener("pointerup", end);
+  h.addEventListener("pointercancel", end);
+  // rotation / HA sidebar: keep the same proportion of the new height
+  window.addEventListener("resize", applySheet);
+}
 
 // ---------------------------------------------------------------- map theme
 function loadMapTheme() {
@@ -214,17 +303,6 @@ function ageStr(min) {
 }
 function esc(s) {
   return (s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-}
-function haversineKm(a, b) {
-  const R = 6371, r = Math.PI / 180;
-  const dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
-  const s = Math.sin(dLat / 2) ** 2 +
-    Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(s));
-}
-function threatSpeed(slug) {
-  const tt = (CFG.threats || []).find((x) => x.slug === slug);
-  return (tt && tt.speed_kmh) || 200;
 }
 function clusterConfidence(c) {
   return Math.max(0, ...(c.sources || []).map((s) => s.confidence || 0));
@@ -282,7 +360,9 @@ async function init() {
       (a.bbox ? [(a.bbox[0] + a.bbox[2]) / 2, (a.bbox[1] + a.bbox[3]) / 2] : [50.45, 30.52]);
 
     applyLayout();
-    map = L.map("map", { zoomControl: true })
+    // canvas, not one SVG node per marker/track/dot: every poll (and every
+    // history-slider step) rebuilds all layers, which was slow on phones
+    map = L.map("map", { zoomControl: true, preferCanvas: true })
       .setView(center, a.radius_km && a.radius_km < 150 ? 8 : 6);
     layer.addTo(map);
     fxLayer.addTo(map);
@@ -388,6 +468,7 @@ function wire() {
     document.body.classList.toggle("filters-open");
   });
   $("#sheetHandle").addEventListener("click", toggleSheet);
+  wireSheetDrag();
 
   $("#area").addEventListener("change", (e) => {
     state.area = e.target.value;
@@ -404,10 +485,13 @@ function wire() {
     closeDrawer();
     refresh();
   });
+  // dragging the slider fires "input" far more often than the screen redraws;
+  // rebuild the map at most once per frame
+  let scrubRaf = 0;
   $("#scrub").addEventListener("input", (e) => {
     state.asOf = e.target.value / 100;
     $("#scrubLabel").textContent = state.asOf >= 0.999 ? t("now") : fmtClock(asOfDate());
-    renderClusters();
+    if (!scrubRaf) scrubRaf = requestAnimationFrame(() => { scrubRaf = 0; renderClusters(); });
   });
   $("#live").addEventListener("change", (e) => { state.live = e.target.checked; startTimer(); });
   $("#ingestBtn").addEventListener("click", async () => {
@@ -460,6 +544,17 @@ function wire() {
   });
   $("#sound").textContent = lsGet("sound") === "off" ? "🔇" : "🔔";
   $("#geo").addEventListener("click", locateMe);
+  $("#dangerPill").addEventListener("click", () => {
+    const id = +$("#dangerPill").dataset.id;
+    const m = markerById.get(id);
+    const c = clusters.find((x) => x.id === id);
+    if (!m || !c) return;
+    if (isMobile()) closeSheet();
+    state.pinned = id;
+    map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 9), { duration: 0.5 });
+    m.openPopup();
+    markPinned(c);
+  });
 
   let deb;
   $("#search").addEventListener("input", (e) => {
@@ -482,6 +577,14 @@ function wire() {
     updateFeedTools();
   });
   updateFeedTools();
+
+  // one listener for the whole feed (rows are rebuilt on every poll)
+  $("#msgs").addEventListener("click", (ev) => {
+    if (ev.target.closest(".meta a")) return;           // opens the Telegram post
+    const li = ev.target.closest(".msg.locatable");
+    const m = li && lastMsgs.find((x) => x.url === li.dataset.url);
+    if (m) showMessageOnMap(m);
+  });
 
   map.on("popupclose", () => {
     if (rendering) return;          // renderClusters rebuilding layers, not the user
@@ -525,7 +628,7 @@ function locateMe() {
       b.classList.remove("busy"); b.classList.add("on");
       drawHere();
       map.flyTo([state.here.lat, state.here.lon], Math.max(map.getZoom(), 9), { duration: 0.6 });
-      renderClusters();
+      loadClusters();
     },
     () => { b.classList.remove("busy"); b.title = t("myloc"); },
     { enableHighAccuracy: false, timeout: 8000, maximumAge: 6e5 }
@@ -568,6 +671,9 @@ async function loadClusters() {
   p.set("since", "-" + state.window);
   const on = CFG.threats.map((th) => th.slug).filter((s) => !state.threatsOff.has(s));
   if (on.length && on.length !== CFG.threats.length) p.set("threats", on.join(","));
+  // danger (course, ETA) is assessed against "my location" when set, else
+  // the area centre. It only goes to this add-on's own server.
+  if (state.here) p.set("ref", `${state.here.lat},${state.here.lon}`);
   const seq = ++clustersSeq;
   try {
     const resp = await fetch("api/clusters?" + p, NO_STORE);
@@ -576,6 +682,7 @@ async function loadClusters() {
     if (seq !== clustersSeq) return;         // a newer request already drew
     const prev = clusters;
     clusters = data.clusters || [];
+    dangerRef = data.ref || null;
     detectNew(prev);
     state.lastUpdate = Date.now();
     renderClusters();
@@ -607,18 +714,23 @@ async function loadMessages() {
 }
 
 // new clusters since the previous poll -> pulse on the map + a soft beep
+// ... and when a track turns "high" danger (on course for you, minutes out)
 function detectNew(prev) {
+  const isHigh = (c) => c.danger && c.danger.level === "high";
   if (seenIds === null) {                 // first load: prime, don't alert
     seenIds = new Set(clusters.map((c) => c.id));
+    highIds = new Set(clusters.filter(isHigh).map((c) => c.id));
     return;
   }
   const fresh = clusters.filter((c) => !seenIds.has(c.id) && c.lat != null);
+  const escalated = clusters.filter((c) => isHigh(c) && !highIds.has(c.id) && c.lat != null);
   for (const c of clusters) seenIds.add(c.id);
-  if (!fresh.length || !state.live || state.asOf < 0.999) return;
+  for (const c of escalated) highIds.add(c.id);
+  if ((!fresh.length && !escalated.length) || !state.live || state.asOf < 0.999) return;
 
   let flashed = false;
-  for (const c of fresh) {
-    pulse(c.lat, c.lon, c.color);
+  for (const c of new Set([...fresh, ...escalated])) {
+    pulse(c.lat, c.lon, isHigh(c) ? "#ff3b30" : c.color);
     flashed = true;
   }
   if (flashed) {
@@ -655,6 +767,7 @@ function renderClusters() {
   const live = state.asOf >= 0.999;
   const cutoff = live ? Date.now() : asOfDate().getTime();
   let reopenMarker = null;
+  markerById.clear();
   const winMin = windowMs() / 60000;
   const offCh = state.channelsOff;
 
@@ -698,10 +811,45 @@ function renderClusters() {
       L.circleMarker([c.dest_lat, c.dest_lon], {
         radius: 3, color: c.color, opacity: 0.7 * op, fillOpacity: 0.7 * op,
       }).addTo(layer);
-    } else if (c.heading_deg != null) {
+    }
+    // where it can be in the next few minutes: a wedge that's as wide as the
+    // heading is uncertain and as long as speed x horizon (see predict.py),
+    // plus where it probably is right now. Only at "now" - it's a forecast.
+    const mo = c.motion || {};
+    if (live && mo.cone && mo.cone.length > 2) {
+      L.polygon(mo.cone, {
+        color: c.color, weight: 1, opacity: 0.45 * op, dashArray: "2 4",
+        fillColor: c.color, fillOpacity: 0.12 * op, interactive: false,
+      }).addTo(layer);
+      if (c.dest_lat == null) {
+        L.polyline([[c.lat, c.lon], destPoint(c.lat, c.lon, mo.heading_deg,
+          (mo.speed_kmh * mo.horizon_min) / 60)], {
+          color: c.color, weight: 1.5, opacity: 0.6 * op, dashArray: "5 6", interactive: false,
+        }).addTo(layer);
+      }
+    } else if (c.dest_lat == null && c.heading_deg != null && c.status !== "circling") {
       const to = destPoint(c.lat, c.lon, c.heading_deg, 28);
       L.polyline([[c.lat, c.lon], to], {
         color: c.color, weight: 2, opacity: 0.7 * op, dashArray: "5 6",
+      }).addTo(layer);
+    }
+    if (live && mo.now) {
+      L.polyline([[c.lat, c.lon], mo.now], {
+        color: c.color, weight: 2, opacity: 0.8 * op, interactive: false,
+      }).addTo(layer);
+      L.circleMarker(mo.now, {
+        radius: 5, color: c.color, weight: 2, opacity: 0.9 * op, dashArray: "2 3",
+        fill: false, interactive: false,
+      }).addTo(layer);
+    }
+    // danger to you / the area: a red ring (high) or an amber dashed one
+    const lvl = live && c.danger ? c.danger.level : "low";
+    if (lvl === "high" || lvl === "medium") {
+      L.circleMarker([c.lat, c.lon], {
+        radius: r + 6, fill: false, interactive: false,
+        color: lvl === "high" ? "#ff3b30" : "#ffb703",
+        weight: lvl === "high" ? 3 : 2, opacity: 0.95,
+        dashArray: lvl === "high" ? null : "4 4",
       }).addTo(layer);
     }
 
@@ -716,6 +864,7 @@ function renderClusters() {
     m.on("click", () => { state.pinned = c.id; markPinned(c); });
     m.on("popupopen", (e) => wirePopup(e.popup));
     if (c.id === reopenId) reopenMarker = m;
+    markerById.set(c.id, m);
     if (badge) {
       m.bindTooltip(badge, {
         permanent: true, direction: "center", className: "count-badge",
@@ -736,10 +885,76 @@ function renderClusters() {
     state.pinned = null;                     // its cluster is gone (resolved / aged out)
   }
   markPinned(clusters.find((x) => x.id === state.pinned) || null);
+  updateDangerPill(live);
+}
+
+const LEVEL_RANK = { high: 2, medium: 1, low: 0 };
+const kmUnit = () => (lang === "uk" ? "км" : "km");
+
+function refName() {
+  if (!dangerRef) return "";
+  if (dangerRef.kind === "here") return t("you");
+  const a = CFG.areas.find((x) => x.key === state.area);
+  return a ? a.label : "";
+}
+
+// the most urgent track: highest level, then soonest on-course ETA, then nearest
+function worstThreat() {
+  let best = null;
+  for (const c of clusters) {
+    const d = c.danger;
+    if (!d || d.level === "low" || c.lat == null) continue;
+    if (state.channelsOff.size && c.channels.every((ch) => state.channelsOff.has(ch))) continue;
+    const key = [LEVEL_RANK[d.level], -(d.eta_min ?? 1e9), -d.distance_km];
+    if (!best || key[0] > best.key[0] || (key[0] === best.key[0] &&
+        (key[1] > best.key[1] || (key[1] === best.key[1] && key[2] > best.key[2])))) {
+      best = { c, key };
+    }
+  }
+  return best && best.c;
+}
+
+// header pill: the most urgent threat to you (or the area) at a glance;
+// tapping it shows that track
+function updateDangerPill(live) {
+  const el = $("#dangerPill");
+  if (!el) return;
+  const c = live ? worstThreat() : null;
+  if (!c) { el.hidden = true; el.dataset.id = ""; return; }
+  const d = c.danger;
+  const th = (CFG.threats || []).find((x) => x.slug === c.threat_type);
+  const name = (th && th.short) || c.threat_label;
+  el.textContent = d.toward && d.eta_min != null
+    ? `⚠ ${name} ~${d.eta_min < 1 ? "<1" : Math.round(d.eta_min)} ${t("min")}`
+    : `⚠ ${name} ${Math.round(d.distance_km)} ${kmUnit()}`;
+  el.title = `${t("lvl_" + d.level)} · ${c.place_name || ""}`;
+  el.className = "danger-pill " + d.level;
+  el.dataset.id = c.id;
+  el.hidden = false;
+}
+
+function dangerRow(c) {
+  const d = c.danger;
+  if (!d) return "";
+  const who = esc(refName());
+  const dist = `${Math.round(d.distance_km)} ${kmUnit()}`;
+  let txt;
+  if (d.toward && d.eta_min != null) {
+    txt = `⚠ ${t("towardYou")} ${who} · ~${d.eta_min < 1 ? "<1" : Math.round(d.eta_min)} ${t("min")} · ${dist}`;
+  } else if (d.receding) {
+    txt = `${dist} ${t("from")} ${who} · ${t("movingAway")}`;
+  } else if (d.cpa_km != null) {
+    txt = `${dist} ${t("from")} ${who} · ${t("passes")} ~${Math.round(d.cpa_km)} ${kmUnit()}`;
+  } else {
+    txt = `${dist} ${t("from")} ${who}`;
+  }
+  return `<div class="pp-row pp-danger ${d.level}">${dangerRef && dangerRef.kind === "here" ? "📍 " : "◎ "}${txt}</div>`;
 }
 
 function popupHtml(c) {
-  const obs = c.heading_observed ? " · observed" : "";
+  const mo = c.motion || {};
+  const obs = (c.heading_observed ? " · observed" : "") +
+    (mo.horizon_min ? ` · ~${mo.speed_kmh} ${t("kmh")}${mo.speed_observed ? " (" + t("observedSpeed") + ")" : ""}` : "");
   const dst = c.dest_name
     ? `<div class="pp-row">→ <b>${esc(c.dest_name)}</b>${c.compass ? " (" + c.compass + obs + ")" : ""}</div>`
     : (c.compass ? `<div class="pp-row">${t("heading")} ${c.compass}${obs}</div>` : "");
@@ -754,19 +969,14 @@ function popupHtml(c) {
   const reports = c.event_count > 1 ? `${c.event_count} ${t("reports")}` : "";
   const conf = clusterConfidence(c);
   const confStr = conf ? ` · ${Math.round(conf * 100)}%` : "";
-  const st = c.status === "descending"
+  // descending: said so, or its reported altitude dropped sharply
+  const st = c.status === "descending" || mo.descending
     ? `<b class="pp-desc">↓ ${t("st_descending")}</b>` : esc(t("st_" + c.status));
-  const alt = c.altitude_m != null ? `${t("altitude")} ${fmtAlt(c.altitude_m)}` : "";
+  const trend = { down: " ↓", up: " ↑" }[mo.alt_trend] || "";
+  const alt = c.altitude_m != null ? `${t("altitude")} ${fmtAlt(c.altitude_m)}${trend}` : "";
   const line2 = [size, st, alt, reports].filter(Boolean).join(" · ") + confStr;
 
-  let hereRow = "";
-  if (state.here) {
-    const d = haversineKm([state.here.lat, state.here.lon], [c.lat, c.lon]);
-    const etaMin = (d / threatSpeed(c.threat_type)) * 60;
-    hereRow = `<div class="pp-row pp-here">📍 ${d.toFixed(0)} km ${t("away")}` +
-      (c.dest_name || c.heading_deg != null ? ` · ${t("eta")} ~${etaMin < 1 ? "<1" : Math.round(etaMin)} min` : "") +
-      `</div>`;
-  }
+  const hereRow = state.asOf >= 0.999 ? dangerRow(c) : "";
   return `<div class="pp-h" style="color:${c.color}">${esc(c.threat_label)}</div>
     <div class="pp-row"><b>${esc(c.place_name || "—")}</b></div>
     <div class="pp-row">${line2}</div>
@@ -878,6 +1088,7 @@ function renderMessages(msgs) {
     if (li) anchor = { url: li.dataset.url, off: li.getBoundingClientRect().top - top };
   }
   ul.innerHTML = "";
+  const frag = document.createDocumentFragment();       // one insert, one layout
   const now = Date.now();
   for (const m of msgs) {
     const li = document.createElement("li");
@@ -900,10 +1111,9 @@ function renderMessages(msgs) {
       </div>
       <div class="body">${esc(m.text)}</div>
       ${tags ? `<div class="tags">${tags}</div>` : ""}`;
-    li.querySelector(".meta a").addEventListener("click", (ev) => ev.stopPropagation());
-    if (located) li.addEventListener("click", () => showMessageOnMap(m));
-    ul.appendChild(li);
+    frag.appendChild(li);
   }
+  ul.appendChild(frag);
   if (toTop) {
     ul.scrollTop = 0;
   } else if (anchor) {

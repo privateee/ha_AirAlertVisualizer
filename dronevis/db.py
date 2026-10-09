@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS event (
 );
 CREATE INDEX IF NOT EXISTS ix_event_posted  ON event (posted_at);
 CREATE INDEX IF NOT EXISTS ix_event_threat  ON event (threat_type, posted_at);
+-- the feed's per-post event lookup, and the ON DELETE CASCADE from
+-- raw_message (prune / reparse) - both were full scans of event without it
+CREATE INDEX IF NOT EXISTS ix_event_raw     ON event (raw_message_id);
 -- covering: cluster centroid recompute + track fetch read the index only
 DROP INDEX IF EXISTS ix_event_cluster;
 CREATE INDEX IF NOT EXISTS ix_event_cluster_cov ON event (cluster_id, posted_at, lat, lon);

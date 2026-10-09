@@ -10,6 +10,11 @@ Entities (device "DroneVisualizer"):
                                       (default: ballistic) above min_confidence
     sensor.dronevis_active            active cluster count
     sensor.dronevis_nearest_km        distance to the nearest active threat
+    sensor.dronevis_threat_level      none / low / medium / high for the area
+                                      centre, from each track's projected
+                                      course (see predict.py)
+    sensor.dronevis_eta               minutes until the nearest track on
+                                      course for the area centre gets there
     sensor.dronevis_last_update       timestamp of the latest report
     event.dronevis_detected           fires once per newly-seen cluster, even
                                       while a binary_sensor is already on -
@@ -37,6 +42,7 @@ from .config import Config
 from .geo.util import bearing_deg, compass, haversine_km
 from .log import get_logger
 from .parse.threats import ALL_SLUGS, FAMILY, LABEL
+from .predict import assess, cluster_motion
 
 log = get_logger("ha")
 
@@ -82,24 +88,41 @@ def compute_state(db, cfg: Config) -> dict:
         (datetime.fromtimestamp(since, timezone.utc).isoformat(),),
     )
 
+    rows = [c for c in rows if c["centroid_lat"] is not None]
+    # every located fix of these tracks (for the course prediction) and their
+    # best parse confidence (for the alarm gate), in one query
+    fixes: dict[int, list] = {}
+    conf: dict[int, float] = {}
+    if rows:
+        ph = ",".join("?" * len(rows))
+        for r in db.query(
+            f"SELECT cluster_id, posted_at, lat, lon, altitude_m, parse_confidence FROM event "
+            f"WHERE cluster_id IN ({ph})", [c["id"] for c in rows]
+        ):
+            cid = r["cluster_id"]
+            conf[cid] = max(conf.get(cid, 0.0), r["parse_confidence"] or 0.0)
+            fixes.setdefault(cid, []).append(r)
+
+    now = datetime.now(timezone.utc)
+    danger: dict[int, dict | None] = {
+        c["id"]: assess(cluster_motion(c, fixes.get(c["id"], []), cfg.dedupe.speed_kmh),
+                        centre, now, cfg.alarm.active_minutes)
+        for c in rows
+    }
+
+    def counts(c) -> bool:
+        if not cfg.alarm.in_area_only or cluster_touches_area(area, c):
+            return True
+        # outside the area, but its projected course gets here soon
+        d = danger.get(c["id"])
+        return bool(cfg.alarm.predict_minutes and d and d["toward"]
+                    and d["eta_min"] is not None
+                    and d["eta_min"] <= cfg.alarm.predict_minutes)
+
     per: dict[str, list] = {}
     for c in rows:
-        if c["centroid_lat"] is None:
-            continue
-        if cfg.alarm.in_area_only and not cluster_touches_area(area, c):
-            continue
-        per.setdefault(c["threat_type"], []).append(c)
-
-    # per-cluster best parse confidence (for the alarm gate)
-    conf: dict[int, float] = {}
-    ids = [c["id"] for cl in per.values() for c in cl]
-    if ids:
-        ph = ",".join("?" * len(ids))
-        for r in db.query(
-            f"SELECT cluster_id, MAX(parse_confidence) mc FROM event "
-            f"WHERE cluster_id IN ({ph}) GROUP BY cluster_id", ids
-        ):
-            conf[r["cluster_id"]] = r["mc"] or 0.0
+        if counts(c):
+            per.setdefault(c["threat_type"], []).append(c)
 
     def where(c) -> tuple[float, float, str | None]:
         # how far the object physically is, and its bearing from the area centre
@@ -129,6 +152,7 @@ def compute_state(db, cfg: Config) -> dict:
                 "nearest_bearing": compass(where(c)[1]),
                 "confidence": round(conf.get(c["id"], 0.0), 2),
                 "updated": c["last_posted_at"],
+                **_danger_fields(danger.get(c["id"])),
             }
             for c in cl
         ]
@@ -146,6 +170,8 @@ def compute_state(db, cfg: Config) -> dict:
             "updated": max(c["last_posted_at"] for c in cl),
             "first_seen": min(c["first_posted_at"] for c in cl),
             "confidence": round(max((conf.get(c["id"], 0.0) for c in cl), default=0.0), 2),
+            "level": _max_level(x["level"] for x in clusters),
+            "eta_min": _min_eta(x["eta_min"] for x in clusters),
         }
 
     active_slugs = [s for s in ALL_SLUGS if s in threats]
@@ -170,6 +196,10 @@ def compute_state(db, cfg: Config) -> dict:
             "types": active_slugs,
             "count": sum(t["count"] for t in threats.values()),
             "nearest_km": round(min(all_near), 1) if all_near else None,
+            "level": _max_level(t["level"] for t in threats.values()),
+            "eta_min": _min_eta(t["eta_min"] for t in threats.values()),
+            "toward": sum(1 for t in threats.values()
+                          for c in t["cluster_detail"] if c["toward"]),
         },
         "alarm": {
             "on": alarm_on,
@@ -184,6 +214,24 @@ def compute_state(db, cfg: Config) -> dict:
                         or datetime.now(timezone.utc).isoformat()),
         "area": area.label,
     }
+
+
+_LEVELS = ("none", "low", "medium", "high")
+
+
+def _danger_fields(d: dict | None) -> dict:
+    if not d:
+        return {"level": "low", "toward": False, "eta_min": None, "passes_km": None}
+    return {"level": d["level"], "toward": d["toward"], "eta_min": d["eta_min"],
+            "passes_km": d["cpa_km"]}
+
+
+def _max_level(levels) -> str:
+    return max(levels, key=_LEVELS.index, default="none")
+
+
+def _min_eta(etas) -> float | None:
+    return min((e for e in etas if e is not None), default=None)
 
 
 # ---------------------------------------------------------------- MQTT
@@ -312,6 +360,16 @@ class HAPublisher:
             "unit_of_measurement": "km", "device_class": "distance",
             "state_class": "measurement", "icon": "mdi:map-marker-distance",
         })
+        self._entity("sensor", "threat_level", {
+            "name": "Threat level", "state_topic": f"{b}/threat_level/state",
+            "device_class": "enum", "options": list(_LEVELS),
+            "icon": "mdi:shield-alert",
+        })
+        self._entity("sensor", "eta", {
+            "name": "Threat ETA", "state_topic": f"{b}/eta/state",
+            "unit_of_measurement": "min", "device_class": "duration",
+            "state_class": "measurement", "icon": "mdi:timer-alert",
+        })
         self._entity("sensor", "last_update", {
             "name": "Last report", "state_topic": f"{b}/last_update/state",
             "device_class": "timestamp", "icon": "mdi:clock-outline",
@@ -352,6 +410,9 @@ class HAPublisher:
                 "nearest_bearing": c["nearest_bearing"],
                 "sources": c["channels"],
                 "confidence": c["confidence"],
+                "level": c["level"],
+                "toward": c["toward"],
+                "eta_min": c["eta_min"],
                 "area": state["area"],
             }
             pub(f"{b}/event/detected", json.dumps(payload), retain=False)
@@ -373,4 +434,7 @@ class HAPublisher:
             pub(f"{b}/active/state", str(state["active"]), retain=True)
             pub(f"{b}/nearest_km/state",
                 "" if state["nearest_km"] is None else str(state["nearest_km"]), retain=True)
+            pub(f"{b}/threat_level/state", state["danger"]["level"], retain=True)
+            eta = state["danger"]["eta_min"]
+            pub(f"{b}/eta/state", "" if eta is None else str(round(eta)), retain=True)
             pub(f"{b}/last_update/state", state["last_update"], retain=True)

@@ -2,6 +2,55 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.18 — 2026-10-09
+
+- **Course prediction** (`dronevis/predict.py`). Heading is a recency-weighted
+  mean of the last three observed legs (one jittery town-centre fix no longer
+  swings it), speed is the *observed* ground speed when the reports span
+  enough time (clamped to a plausible band; jet UAVs may be believed up to
+  900 km/h, their usual 400–600 stays the default), and the heading
+  uncertainty is kept. A stated destination still wins.
+- **Map: where it can be, and where it probably is now.** The fixed 28 km
+  heading dash is replaced by a cone as wide as the heading is uncertain and
+  as long as speed × a per-type horizon (never more than ~60 km), plus a
+  dashed ring at the dead-reckoned position *now*. Live view only.
+- **Danger to you (or the area centre).** Each track gets a closest-approach
+  check against "my location" (sent only to the add-on's own server) or the
+  area centre: popup says "⚠ toward you · ~7 min", "moving away" or "passes
+  ~12 km" — the old popup ETA was straight-line distance ÷ speed, shown even
+  for a target flying away. High / medium tracks get a red / amber ring, the
+  header shows the most urgent one (tap to jump to it), and a track turning
+  high beeps like a new one. Tracks with no report for `active_minutes`
+  (30) and impacts are never a danger.
+- **Altitude feeds danger:** a clear drop in reported altitude counts as
+  descending even without "зниження"; descending within 25 km is high.
+  Popup shows the trend (↓ / ↑).
+- **HA:** `sensor.dronevis_threat_level` (none / low / medium / high) and
+  `sensor.dronevis_eta` (minutes). Threat sensors and the alarm now also
+  count a track outside the area that is on course to reach it within
+  `alarm.predict_minutes` (new option, default 15; add-on:
+  `alarm_predict_minutes`, 0 = off). Per-track `level` / `toward` /
+  `eta_min` in attributes and in `event.dronevis_detected`.
+- **Jet UAV top speed 900 km/h** in track chaining, so a fast dash isn't
+  split into two tracks.
+- **Resizable feed on a phone.** Drag the feed's handle to any height — it
+  stays where you let go (remembered). Near the bottom it closes, near the
+  top it goes fully up, a quick flick goes all the way; a tap still toggles
+  peek ⇄ your last height. The posts at the end stay reachable at any height.
+  The sheet now covers the map's zoom buttons instead of the other way
+  round, and the attribution sits above the history slider.
+- **Fix: a fresh install couldn't fetch anything.** selectolax 1.0 removed
+  the parser backend we imported (`selectolax.parser`); switched to the
+  Lexbor backend, same API on 0.3.x and 1.x.
+- **Faster map redraws:** canvas renderer instead of one SVG node per
+  marker / track / dot; the history slider redraws at most once per frame.
+- **Lighter feed refresh:** one delegated click handler instead of two
+  listeners per post; rows inserted in a single DOM operation.
+- **DB index on `event.raw_message_id`:** the feed's event lookup on every
+  poll and the cascade delete in prune / reparse were full table scans.
+- Dedupe: the event's source post is looked up once per event, not once per
+  candidate cluster.
+
 ## 0.9.17 — 2026-09-30
 
 - **Search folds behind 🔍** to the right of the feed's activity graph. It

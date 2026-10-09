@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.9.18
+
+Course prediction and danger: tracks show a cone of where they can be in the
+next minutes and where they probably are now; the popup tells you whether a
+target is heading toward you (with ETA), passing by, or moving away; dangerous
+tracks get a red / amber ring and the most urgent one is shown in the header.
+New HA sensors `sensor.dronevis_threat_level` and `sensor.dronevis_eta`, and a
+new option `alarm_predict_minutes` (default 15) so a threat on course for your
+area counts before it crosses the boundary. A dropping reported altitude
+counts as descending. Jet UAVs may be tracked up to 900 km/h.
+
+The feed on a phone is resizable: drag its handle to any height and it stays
+there. Fixes a dependency change (selectolax 1.0) that would have stopped a
+freshly built add-on from fetching posts. Faster map and feed redraws, and a
+database index that speeds up the feed and cleanup.
+
 ## 0.9.17
 
 Feed: search is folded behind a 🔍 button next to the activity graph (closing

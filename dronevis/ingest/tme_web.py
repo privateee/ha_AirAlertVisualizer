@@ -18,7 +18,9 @@ import time
 from datetime import datetime, timezone
 
 import httpx
-from selectolax.parser import HTMLParser
+# Lexbor backend: selectolax 1.0 removed the old Modest one (selectolax.parser),
+# which broke the import on a fresh install. Same node API, both 0.3.x and 1.x.
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 
 def _ssl_context() -> ssl.SSLContext | bool:
