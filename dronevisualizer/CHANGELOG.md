@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.20
+
+Fix: the feed was empty when a short map window (e.g. 5 min) was selected.
+It again always shows at least the last 6 hours.
+
 ## 0.9.19
 
 Better reading of how the channels really write, from ~4000 real posts:

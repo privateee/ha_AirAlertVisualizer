@@ -2,6 +2,13 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.20 — 2026-10-09
+
+- **Fix: the feed was empty with a short window.** 0.9.19 made the feed show
+  only the map's window, so at "5 min" it was usually blank. Back to the
+  original rule: the feed always covers at least the last 6 hours (longer
+  windows widen it), whatever the map shows.
+
 ## 0.9.19 — 2026-10-09
 
 Parser and gazetteer fixes from an analysis of ~4000 real posts (the last
@@ -35,7 +42,7 @@ Parser and gazetteer fixes from an analysis of ~4000 real posts (the last
   ("Ьориспіль", "Святощин", "Виноградао") — resolve when every reading points
   to one place near the area. A *missing* letter is never guessed (that is
   how "Лісники" would become a different village).
-- **Feed follows the window.** It used to show at least 6 hours whatever the
+- ~~Feed follows the window~~ (reverted in 0.9.20 - it left the feed empty). It used to show at least 6 hours whatever the
   window, so switching to 5 minutes seemed to change nothing; the activity
   graph follows it too.
 - Fix: a multi-line post's header ("Загальна по мопедам:") could become a
