@@ -10,6 +10,15 @@ Usage:
     python scripts/build_gazetteer.py                 # download UA.zip, write merged file
     python scripts/build_gazetteer.py --min-pop 2000
     python scripts/build_gazetteer.py --source path/to/UA.txt --out custom.json
+    python scripts/build_gazetteer.py --add-seen posts.json [--source UA.zip]
+
+``--add-seen`` leaves the existing gazetteer as it is and adds only the
+villages the channels actually name: every capitalised word after a
+preposition ("на Затоку", "повз Лісники") that the gazetteer can't place yet
+is looked up among *all* GeoNames populated places (abandoned ones too -
+Прип'ять). Villages in general add ambiguity; villages people really write
+about add coverage. ``posts.json`` is ``{channel: [{"text": ...}, ...]}``.
+A full rebuild starts from the seed again, so rerun ``--add-seen`` after it.
 
 GeoNames dump format (tab separated), columns we use:
     1 geonameid  2 name  4 alternatenames  5 lat  6 lon
@@ -134,13 +143,159 @@ def rank_for(code: str, population: int) -> int:
     return base
 
 
+_TOKEN_RE = re.compile(
+    r"(?:^|[\s,(:/])(?:на|в|у|повз|біля|возле|над|через|до|з|із|від|от|из|курс|курсом на|"
+    r"напрямку|направлении|район[іе]?|р-н)\s+"
+    r"([А-ЯІЇЄҐ][а-яіїєґ'’ʼ\-]{2,}(?:[\s-][А-ЯІЇЄҐ][а-яіїєґ'’ʼ\-]{2,})?)")
+_NOT_PLACES = {"мавік", "ціль", "цілі", "курс", "увага", "загроза", "бандероль", "шахед",
+               "слобідку", "слобідка", "голос", "белая", "буки", "черкас", "украина",
+               "україна", "новгород", "новгорода", "сила"}
+# a single capitalised word with an adjective ending is a district / oblast
+# / direction word ("Західний", "Микільську", "Боровой"), not a village name
+_ADJ_END = re.compile(
+    r"(ий|ій|ой|ая|ую|ою|ої|ого|ому|ым|ом)$"
+    r"|(ськ|цьк|зьк|ск|цк)(ий|ій|ої|ому|ого|им|ім|у|а|е|і|ою|их|ая|ую|ом|ой|ие|ии)$")
+# GeoNames villages whose name is also an ordinary word or a far better-known
+# place in the posts' sense - reviewed by hand from an --add-seen run
+_NOT_VILLAGES = {"украина", "україна", "сила", "посад", "любе", "сніги", "чорна", "чорне",
+                 "київське", "геленджик", "русанів", "монастирище", "киселі", "корсунь",
+                 "микільське", "інгульське", "рідкодуб", "рідкодуби", "біркі", "цветково"}
+# homonyms where the posts only ever mean one of them (GeoNames has no
+# population for villages, so nothing else would pick the right one)
+_ONLY_IN = {"затока": "odesa"}
+
+
+def add_seen(dump: list[str], posts_path: str, out: Path) -> int:
+    sys.path.insert(0, str(ROOT))
+    from dronevis.geo.gazetteer import Gazetteer, _keys_for
+    from dronevis.parse.normalize import fold
+    from dronevis.parse.threats import classify_line
+
+    gaz = Gazetteer(out)
+    data = json.loads(out.read_text(encoding="utf-8"))
+    centres = [(p["obl"], (p["lat"], p["lon"])) for p in data["places"]
+               if p.get("rank") == 5 and p.get("obl") and not p["obl"].startswith(("ru_", "by_"))]
+
+    def nearest_obl(lat, lon):
+        import math
+
+        def hav(a, b):
+            la1, lo1, la2, lo2 = map(math.radians, (*a, *b))
+            h = (math.sin((la2 - la1) / 2) ** 2
+                 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2)
+            return 2 * 6371 * math.asin(math.sqrt(h))
+        return min(centres, key=lambda c: hav((lat, lon), c[1]))[0]
+
+    # what the channels name that we can't place yet
+    seen: dict[str, int] = {}
+    posts = json.loads(Path(posts_path).read_text(encoding="utf-8"))
+    for items in posts.values():
+        for post in items:
+            for m in _TOKEN_RE.finditer(post["text"]):
+                word = m.group(1)
+                f = fold(word)
+                if " " not in word and "-" not in word and _ADJ_END.search(word.lower()):
+                    continue
+                if (word.lower() in _NOT_PLACES or classify_line(f) is not None
+                        or gaz.find(f) or gaz.region_hit(f)):
+                    continue
+                seen[f] = seen.get(f, 0) + 1
+    if not seen:
+        print("nothing unplaced in the posts", file=sys.stderr)
+        return 0
+
+    # every populated place, by every case form of its name
+    by_key: dict[str, list[dict]] = {}
+    for line in dump:
+        cols = line.split("\t")
+        if len(cols) < 15 or cols[6] != "P":
+            continue
+        disp, aliases = pick_cyrillic(cols[1], cols[2], cols[3])
+        if not _CYR_NAME.match(disp):
+            continue
+        try:
+            lat, lon = float(cols[4]), float(cols[5])
+        except ValueError:
+            continue
+        rank = max(1, rank_for(cols[7], int(cols[14] or 0)))
+        rec = {"name": disp, "lat": round(lat, 4), "lon": round(lon, 4),
+               "kind": "village" if rank < 3 else "town", "obl": nearest_obl(lat, lon),
+               "rank": rank, "aliases": aliases, "_id": cols[0],
+               "_pop": int(cols[14] or 0)}
+        for k in _keys_for(disp, aliases):
+            by_key.setdefault(k, []).append(rec)
+
+    # a seen word resolves the way the runtime matcher would: the longest key
+    # that leaves at most three letters of case ending ("Бобрика" -> бобрик).
+    # Best match across ALL places - "Лісники" must not also pull in "Лісне".
+    found: dict[str, list[dict]] = {}
+    unplaced = []
+    for t in seen:
+        for cut in range(0, 4):
+            k = t[: len(t) - cut]
+            if len(k) >= 4 and k in by_key:
+                for r in by_key[k]:
+                    if r["name"].lower() in _NOT_VILLAGES:
+                        continue
+                    if _ONLY_IN.get(r["name"].lower(), r["obl"]) != r["obl"]:
+                        continue
+                    found.setdefault(r["name"].lower(), [])
+                    if all(x["_id"] != r["_id"] for x in found[r["name"].lower()]):
+                        found[r["name"].lower()].append(dict(r, seen=[t]))
+                break
+        else:
+            unplaced.append(t)
+    missing = sorted(unplaced)
+
+    have = {p["name"].lower() for p in data["places"]}
+    added = 0
+    for recs in found.values():
+        if recs[0]["name"].lower() in have:
+            continue
+        # most populous first: with no oblast hint and nothing near the area,
+        # the resolver keeps the first of equal rank (the Odesa Затока, not a
+        # hamlet of the same name)
+        recs.sort(key=lambda r: -r["_pop"])
+        if len(recs) > 1:                       # same name in several oblasts
+            for r in recs:
+                r["name"] = f"{r['name']} ({_OBL_UK.get(r['obl'], r['obl'])})"
+        for r in recs:
+            r.pop("_id")
+            r.pop("_pop")
+            print(f"  + {r['name']:34} {r['lat']:.3f},{r['lon']:.3f}  "
+                  f"seen as {', '.join(r.pop('seen'))}", file=sys.stderr)
+            data["places"].append(r)
+            added += 1
+    out.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"added {added} places -> {out}; still unplaced: {', '.join(missing[:80])}",
+          file=sys.stderr)
+    return 0
+
+
+_OBL_UK = {
+    "vinnytsia": "Вінницька", "volyn": "Волинська", "luhansk": "Луганська",
+    "dnipro": "Дніпропетровська", "donetsk": "Донецька", "zhytomyr": "Житомирська",
+    "zakarp": "Закарпатська", "zapor": "Запорізька", "if": "Івано-Франківська",
+    "kyiv_o": "Київська", "kropyv": "Кіровоградська", "lviv": "Львівська",
+    "mykolaiv": "Миколаївська", "odesa": "Одеська", "poltava": "Полтавська",
+    "rivne": "Рівненська", "sumy": "Сумська", "ternopil": "Тернопільська",
+    "kharkiv": "Харківська", "kherson": "Херсонська", "khmeln": "Хмельницька",
+    "cherkasy": "Черкаська", "chernivtsi": "Чернівецька", "chernihiv": "Чернігівська",
+    "kyiv_c": "Київ", "crimea": "Крим",
+}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", help="local UA.txt or UA.zip instead of downloading")
     ap.add_argument("--min-pop", type=int, default=1000)
     ap.add_argument("--bbox", help="south,west,north,east - keep only inside")
     ap.add_argument("--out", default=str(OUT_DEFAULT))
+    ap.add_argument("--add-seen", metavar="POSTS_JSON",
+                    help="add only villages named in these posts to the existing --out")
     args = ap.parse_args(argv)
+    if args.add_seen:
+        return add_seen(load_dump(args.source), args.add_seen, Path(args.out))
 
     _OBL_UK = {
         "vinnytsia": "Вінницька", "volyn": "Волинська", "luhansk": "Луганська",

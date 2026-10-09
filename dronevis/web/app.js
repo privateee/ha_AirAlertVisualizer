@@ -700,8 +700,9 @@ async function loadMessages() {
   const p = new URLSearchParams();
   const on = CFG.channels.filter((c) => !state.channelsOff.has(c));
   if (on.length && on.length !== CFG.channels.length) p.set("channels", on.join(","));
-  // the stream stays readable even at a 15-minute map window
-  p.set("since", "-" + (windowMs() < 6 * 36e5 ? "6h" : state.window));
+  // the feed shows the same period as the map (it used to stay at 6 hours
+  // for any shorter window, so changing the window seemed to do nothing)
+  p.set("since", "-" + state.window);
   if (state.q) p.set("q", state.q);
   p.set("limit", "250");
   const seq = ++msgsSeq;
@@ -1144,7 +1145,7 @@ function drawTimeline(msgs) {
   if (!el) return;
   const N = 40;
   const now = Date.now();
-  const span = Math.max(windowMs(), 6 * 36e5);
+  const span = windowMs();
   const buckets = new Array(N).fill(0);
   for (const m of msgs) {
     const age = now - new Date(m.posted_at).getTime();

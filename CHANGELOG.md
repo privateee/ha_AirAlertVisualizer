@@ -2,6 +2,45 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.19 — 2026-10-09
+
+Parser and gazetteer fixes from an analysis of ~4000 real posts (the last
+~1000 of each channel). On that history: 17% fewer posts with no map event,
++217 located reports, +30% with a heading, more impacts / descents caught.
+
+- **Fix: Zaporizhzhia (the city) could never be matched** — the oblast word
+  pattern `запориж…` blocked the city's own name. Oblast words are now
+  adjectives only.
+- **Places the channels name but the gazetteer lacked:** villages are added
+  only when the posts actually mention them (`build_gazetteer.py
+  --add-seen posts.json`): Чорнобиль, Прип'ять, Теплик, Теплодар, Затока,
+  Лісники, Круглик, Бобрик, Почайна, Наливайківка, Коблеве, Томашпіль,
+  Кринички … (126 entries; homonyms resolve by the post's oblast, then
+  proximity). Nicknames: Троя → Троєщина, Кроп → Кропивницький, Пуща,
+  Заспа, Петрівці → Нові Петрівці; all case forms of Кривий Ріг.
+- **Plural town names in the genitive**: "з Черкас", "біля Прилук",
+  "Петрівців", "у Черкасах".
+- **District adjectives → the district's centre town:** "у Миколаївському
+  районі", "Броварський р-н", "Белоцерковском районе".
+- **Oblast adjectives (uk + ru)** are the oblast, not its capital: "у
+  Черкаській області", "в Сумской области", "на Полтавскую область".
+- **Launch origins** give the direction of approach: Крим, Чорне / Азовське
+  море, Каспій, Білорусь ("рб").
+- **Directions:** "курс Теплик" (no "на"), "у північно-західному напрямку"
+  (kpszsu's arrow lines), "в напрямку н.п. Теплик" / "смт …".
+- **Statuses:** "приліт" was never seen as an impact (the folded text has no
+  "і"); slang "жахнуло / влупило / бахнуло" = impact, "падає / впаде на" =
+  descending, "Мінус" next to a place = all clear there.
+- **Keyboard typos** — one neighbouring key, one extra letter or two swapped
+  ("Ьориспіль", "Святощин", "Виноградао") — resolve when every reading points
+  to one place near the area. A *missing* letter is never guessed (that is
+  how "Лісники" would become a different village).
+- **Feed follows the window.** It used to show at least 6 hours whatever the
+  window, so switching to 5 minutes seemed to change nothing; the activity
+  graph follows it too.
+- Fix: a multi-line post's header ("Загальна по мопедам:") could become a
+  phantom track at an oblast named further down.
+
 ## 0.9.18 — 2026-10-09
 
 - **Course prediction** (`dronevis/predict.py`). Heading is a recency-weighted

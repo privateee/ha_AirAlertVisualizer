@@ -185,7 +185,8 @@
         "кропивницкого",
         "кіровоградщина",
         "кировоградщина",
-        "кропивницьким"
+        "кропивницьким",
+        "Кроп"
       ]
     },
     {
@@ -495,7 +496,8 @@
       "rank": 2,
       "aliases": [
         "новые петровцы",
-        "нові петривці"
+        "нові петривці",
+        "Петрівці"
       ]
     },
     {
@@ -1511,7 +1513,8 @@
       "obl": "kyiv_c",
       "rank": 1,
       "aliases": [
-        "троещина"
+        "троещина",
+        "Троя"
       ]
     },
     {
@@ -1768,7 +1771,8 @@
       "rank": 1,
       "aliases": [
         "пуща-водица",
-        "пуща водиця"
+        "пуща водиця",
+        "Пуща"
       ]
     },
     {
@@ -2380,7 +2384,8 @@
       "rank": 1,
       "aliases": [
         "конча заспа",
-        "конча-заспа"
+        "конча-заспа",
+        "Заспа"
       ]
     },
     {
@@ -11288,7 +11293,15 @@
       "rank": 5,
       "aliases": [
         "Кривый Ріг",
-        "Кривой рог"
+        "Кривой рог",
+        "Кривого Рогу",
+        "Кривого Рога",
+        "Кривому Розі",
+        "Кривому Рогу",
+        "Кривим Рогом",
+        "Кривой Рог",
+        "Кривом Роге",
+        "Кривым Рогом"
       ]
     },
     {
@@ -17791,6 +17804,1284 @@
       "rank": 3,
       "aliases": [
         "Кримський масив"
+      ]
+    },
+    {
+      "name": "Затока",
+      "lat": 46.0702,
+      "lon": 30.4627,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Дніпропетровська)",
+      "lat": 48.3744,
+      "lon": 34.462,
+      "kind": "village",
+      "obl": "dnipro",
+      "rank": 2,
+      "aliases": [
+        "Крынычкы"
+      ]
+    },
+    {
+      "name": "Кринички (Миколаївська)",
+      "lat": 47.0724,
+      "lon": 31.7332,
+      "kind": "village",
+      "obl": "mykolaiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Херсонська)",
+      "lat": 45.0709,
+      "lon": 35.1062,
+      "kind": "village",
+      "obl": "kherson",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Вінницька)",
+      "lat": 48.0335,
+      "lon": 29.707,
+      "kind": "village",
+      "obl": "vinnytsia",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Одеська)",
+      "lat": 47.1388,
+      "lon": 30.5717,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Кіровоградська)",
+      "lat": 48.6447,
+      "lon": 30.9943,
+      "kind": "village",
+      "obl": "kropyv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Донецька)",
+      "lat": 47.8661,
+      "lon": 38.7039,
+      "kind": "village",
+      "obl": "donetsk",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Харківська)",
+      "lat": 49.9883,
+      "lon": 38.434,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": [
+        "Роднички"
+      ]
+    },
+    {
+      "name": "Кринички (Житомирська)",
+      "lat": 51.4,
+      "lon": 29.1667,
+      "kind": "village",
+      "obl": "zhytomyr",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Харківська)",
+      "lat": 49.5989,
+      "lon": 37.7814,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Дніпропетровська)",
+      "lat": 48.5333,
+      "lon": 36.2,
+      "kind": "village",
+      "obl": "dnipro",
+      "rank": 1,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Запорізька)",
+      "lat": 47.9862,
+      "lon": 34.555,
+      "kind": "village",
+      "obl": "zapor",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Сумська)",
+      "lat": 50.6899,
+      "lon": 34.2986,
+      "kind": "village",
+      "obl": "sumy",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Луганська)",
+      "lat": 49.2956,
+      "lon": 38.709,
+      "kind": "village",
+      "obl": "luhansk",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Донецька)",
+      "lat": 48.1657,
+      "lon": 38.0478,
+      "kind": "village",
+      "obl": "donetsk",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Харківська)",
+      "lat": 49.6417,
+      "lon": 37.6164,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Чернігівська)",
+      "lat": 52.252,
+      "lon": 32.4758,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Вінницька)",
+      "lat": 48.413,
+      "lon": 28.7421,
+      "kind": "village",
+      "obl": "vinnytsia",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Рівненська)",
+      "lat": 50.7197,
+      "lon": 26.5804,
+      "kind": "village",
+      "obl": "rivne",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Харківська)",
+      "lat": 49.758,
+      "lon": 35.9697,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Дніпропетровська)",
+      "lat": 48.4868,
+      "lon": 33.9883,
+      "kind": "village",
+      "obl": "dnipro",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Кіровоградська)",
+      "lat": 48.1625,
+      "lon": 33.7068,
+      "kind": "village",
+      "obl": "kropyv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Кринички (Житомирська)",
+      "lat": 50.225,
+      "lon": 28.9501,
+      "kind": "village",
+      "obl": "zhytomyr",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Глобине",
+      "lat": 49.3789,
+      "lon": 33.2756,
+      "kind": "village",
+      "obl": "cherkasy",
+      "rank": 2,
+      "aliases": [
+        "Глобино"
+      ]
+    },
+    {
+      "name": "Лісники (Київ)",
+      "lat": 50.3045,
+      "lon": 30.5202,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": [
+        "Лисники"
+      ]
+    },
+    {
+      "name": "Лісники (Тернопільська)",
+      "lat": 49.4447,
+      "lon": 24.8936,
+      "kind": "village",
+      "obl": "ternopil",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Рожівка",
+      "lat": 50.6018,
+      "lon": 30.7575,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": [
+        "Рожовка"
+      ]
+    },
+    {
+      "name": "Бузова (Київ)",
+      "lat": 50.417,
+      "lon": 30.044,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": [
+        "Бузовая"
+      ]
+    },
+    {
+      "name": "Бузова (Полтавська)",
+      "lat": 49.9656,
+      "lon": 35.2371,
+      "kind": "village",
+      "obl": "poltava",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Зазим’я",
+      "lat": 50.5692,
+      "lon": 30.6732,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": [
+        "Зазимье"
+      ]
+    },
+    {
+      "name": "Лебедівка (Одеська)",
+      "lat": 45.8288,
+      "lon": 30.1482,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Лебедёвка"
+      ]
+    },
+    {
+      "name": "Лебедівка (Харківська)",
+      "lat": 49.1624,
+      "lon": 35.9526,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": [
+        "Лебедевка"
+      ]
+    },
+    {
+      "name": "Лебедівка (Чернігівська)",
+      "lat": 51.2333,
+      "lon": 30.9667,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Лебедівка (Житомирська)",
+      "lat": 50.4755,
+      "lon": 27.8823,
+      "kind": "village",
+      "obl": "zhytomyr",
+      "rank": 2,
+      "aliases": [
+        "Лебедовка"
+      ]
+    },
+    {
+      "name": "Лебедівка (Харківська)",
+      "lat": 49.6687,
+      "lon": 38.0827,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": [
+        "Лебедовка"
+      ]
+    },
+    {
+      "name": "Лебедівка (Київ)",
+      "lat": 50.709,
+      "lon": 30.5454,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": [
+        "Лебедевка"
+      ]
+    },
+    {
+      "name": "Лебедівка (Черкаська)",
+      "lat": 50.2733,
+      "lon": 32.0256,
+      "kind": "village",
+      "obl": "cherkasy",
+      "rank": 2,
+      "aliases": [
+        "Лебедовка"
+      ]
+    },
+    {
+      "name": "Лебедівка (Харківська)",
+      "lat": 50.0126,
+      "lon": 37.3396,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": [
+        "Лебедовка"
+      ]
+    },
+    {
+      "name": "Лебедівка (Черкаська)",
+      "lat": 49.0329,
+      "lon": 31.9668,
+      "kind": "village",
+      "obl": "cherkasy",
+      "rank": 2,
+      "aliases": [
+        "Лебедовка",
+        "Лебедевка"
+      ]
+    },
+    {
+      "name": "Лебедівка (Хмельницька)",
+      "lat": 49.1756,
+      "lon": 27.0714,
+      "kind": "village",
+      "obl": "khmeln",
+      "rank": 2,
+      "aliases": [
+        "Лебедовка"
+      ]
+    },
+    {
+      "name": "Бобрик (Сумська)",
+      "lat": 50.4124,
+      "lon": 34.2414,
+      "kind": "village",
+      "obl": "sumy",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Бобрик (Миколаївська)",
+      "lat": 47.658,
+      "lon": 30.6161,
+      "kind": "village",
+      "obl": "mykolaiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Бобрик (Чернігівська)",
+      "lat": 51.1333,
+      "lon": 31.7833,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Бобрик (Чернігівська)",
+      "lat": 51.9164,
+      "lon": 32.73,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Бобрик (Київ)",
+      "lat": 51.2,
+      "lon": 29.6,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Бобрик (Сумська)",
+      "lat": 50.9636,
+      "lon": 34.1222,
+      "kind": "village",
+      "obl": "sumy",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Бобрик (Сумська)",
+      "lat": 50.6779,
+      "lon": 33.5099,
+      "kind": "village",
+      "obl": "sumy",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Бобрик (Житомирська)",
+      "lat": 50.3753,
+      "lon": 29.0737,
+      "kind": "village",
+      "obl": "zhytomyr",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Бобрик (Київ)",
+      "lat": 50.6521,
+      "lon": 31.0916,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Рогозів",
+      "lat": 50.2378,
+      "lon": 31.0546,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": [
+        "Рогозов"
+      ]
+    },
+    {
+      "name": "Дударків",
+      "lat": 50.445,
+      "lon": 30.9494,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": [
+        "Дударков"
+      ]
+    },
+    {
+      "name": "Жукин",
+      "lat": 50.8116,
+      "lon": 30.6949,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Прип’ять (Волинська)",
+      "lat": 51.4965,
+      "lon": 24.1193,
+      "kind": "village",
+      "obl": "volyn",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Прип’ять (Чернігівська)",
+      "lat": 51.4054,
+      "lon": 30.058,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 1,
+      "aliases": [
+        "Припять",
+        "Припят",
+        "Прыпяць"
+      ]
+    },
+    {
+      "name": "Маяки (Одеська)",
+      "lat": 46.4125,
+      "lon": 30.2672,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Маякі"
+      ]
+    },
+    {
+      "name": "Маяки (Донецька)",
+      "lat": 48.9468,
+      "lon": 37.6204,
+      "kind": "village",
+      "obl": "donetsk",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Маяки (Одеська)",
+      "lat": 47.4411,
+      "lon": 29.56,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Маяки (Одеська)",
+      "lat": 45.4627,
+      "lon": 29.2399,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Маяки (Вінницька)",
+      "lat": 48.606,
+      "lon": 28.7201,
+      "kind": "village",
+      "obl": "vinnytsia",
+      "rank": 2,
+      "aliases": [
+        "Маякы"
+      ]
+    },
+    {
+      "name": "Маяки (Рівненська)",
+      "lat": 50.5626,
+      "lon": 25.8599,
+      "kind": "village",
+      "obl": "rivne",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Наливайківка",
+      "lat": 50.4849,
+      "lon": 29.7207,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": [
+        "Наливайковка"
+      ]
+    },
+    {
+      "name": "Градизьк",
+      "lat": 49.2394,
+      "lon": 33.1394,
+      "kind": "village",
+      "obl": "cherkasy",
+      "rank": 2,
+      "aliases": [
+        "Градызк",
+        "Градижск"
+      ]
+    },
+    {
+      "name": "Почайна",
+      "lat": 50.4878,
+      "lon": 30.4992,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 1,
+      "aliases": []
+    },
+    {
+      "name": "Усатове (Одеська)",
+      "lat": 46.5289,
+      "lon": 30.6495,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Усатово",
+        "Усатавэ"
+      ]
+    },
+    {
+      "name": "Усатове (Одеська)",
+      "lat": 46.5155,
+      "lon": 30.609,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Усатово"
+      ]
+    },
+    {
+      "name": "Круглик (Чернівецька)",
+      "lat": 48.3707,
+      "lon": 26.4488,
+      "kind": "village",
+      "obl": "chernivtsi",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Луганська)",
+      "lat": 48.3055,
+      "lon": 39.1412,
+      "kind": "village",
+      "obl": "luhansk",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Полтавська)",
+      "lat": 50.3086,
+      "lon": 33.8129,
+      "kind": "village",
+      "obl": "poltava",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Донецька)",
+      "lat": 48.2651,
+      "lon": 38.5642,
+      "kind": "village",
+      "obl": "donetsk",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Хмельницька)",
+      "lat": 49.6042,
+      "lon": 27.2273,
+      "kind": "village",
+      "obl": "khmeln",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Запорізька)",
+      "lat": 48.0105,
+      "lon": 35.1643,
+      "kind": "village",
+      "obl": "zapor",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Сумська)",
+      "lat": 50.7808,
+      "lon": 35.4472,
+      "kind": "village",
+      "obl": "sumy",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Луганська)",
+      "lat": 48.1853,
+      "lon": 39.1969,
+      "kind": "village",
+      "obl": "luhansk",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Рівненська)",
+      "lat": 50.3495,
+      "lon": 27.246,
+      "kind": "village",
+      "obl": "rivne",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Київ)",
+      "lat": 50.3035,
+      "lon": 30.4493,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Харківська)",
+      "lat": 49.847,
+      "lon": 35.5802,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Круглик (Донецька)",
+      "lat": 48.3412,
+      "lon": 38.5046,
+      "kind": "village",
+      "obl": "donetsk",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Чигирин (Черкаська)",
+      "lat": 49.0804,
+      "lon": 32.6608,
+      "kind": "village",
+      "obl": "cherkasy",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Чигирин (Одеська)",
+      "lat": 47.1296,
+      "lon": 30.7379,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Липовий Скиток",
+      "lat": 50.2758,
+      "lon": 30.1992,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Слатине",
+      "lat": 50.2104,
+      "lon": 36.1538,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": [
+        "Слатино",
+        "Слатынэ"
+      ]
+    },
+    {
+      "name": "Губиниха",
+      "lat": 48.808,
+      "lon": 35.2583,
+      "kind": "village",
+      "obl": "dnipro",
+      "rank": 2,
+      "aliases": [
+        "Губыныха"
+      ]
+    },
+    {
+      "name": "Теплик",
+      "lat": 48.6654,
+      "lon": 29.7448,
+      "kind": "village",
+      "obl": "vinnytsia",
+      "rank": 2,
+      "aliases": [
+        "Тэплык"
+      ]
+    },
+    {
+      "name": "Цвіткове (Черкаська)",
+      "lat": 49.1549,
+      "lon": 31.5319,
+      "kind": "village",
+      "obl": "cherkasy",
+      "rank": 2,
+      "aliases": [
+        "Цвітковэ",
+        "Цветково"
+      ]
+    },
+    {
+      "name": "Цвіткове (Миколаївська)",
+      "lat": 47.6333,
+      "lon": 31.1833,
+      "kind": "village",
+      "obl": "mykolaiv",
+      "rank": 2,
+      "aliases": [
+        "Цветково"
+      ]
+    },
+    {
+      "name": "Цвіткове (Кіровоградська)",
+      "lat": 48.3526,
+      "lon": 30.6922,
+      "kind": "village",
+      "obl": "kropyv",
+      "rank": 2,
+      "aliases": [
+        "Цвиткове"
+      ]
+    },
+    {
+      "name": "Цвіткове (Запорізька)",
+      "lat": 47.352,
+      "lon": 34.7081,
+      "kind": "village",
+      "obl": "zapor",
+      "rank": 2,
+      "aliases": [
+        "Цвиткове"
+      ]
+    },
+    {
+      "name": "Цвіткове (Кіровоградська)",
+      "lat": 47.6954,
+      "lon": 33.12,
+      "kind": "village",
+      "obl": "kropyv",
+      "rank": 2,
+      "aliases": [
+        "Цветково"
+      ]
+    },
+    {
+      "name": "Цвіткове (Запорізька)",
+      "lat": 47.6978,
+      "lon": 36.1267,
+      "kind": "village",
+      "obl": "zapor",
+      "rank": 2,
+      "aliases": [
+        "Цвиткове"
+      ]
+    },
+    {
+      "name": "Калинопіль",
+      "lat": 48.3794,
+      "lon": 34.0273,
+      "kind": "village",
+      "obl": "kropyv",
+      "rank": 2,
+      "aliases": [
+        "Калинополь"
+      ]
+    },
+    {
+      "name": "Липняжка",
+      "lat": 48.4458,
+      "lon": 31.0807,
+      "kind": "village",
+      "obl": "kropyv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Теплодар",
+      "lat": 46.502,
+      "lon": 30.3226,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Тэпладар"
+      ]
+    },
+    {
+      "name": "Бірки (Харківська)",
+      "lat": 49.7202,
+      "lon": 36.0578,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": [
+        "Бирки"
+      ]
+    },
+    {
+      "name": "Бірки (Львівська)",
+      "lat": 49.9167,
+      "lon": 23.9167,
+      "kind": "village",
+      "obl": "lviv",
+      "rank": 2,
+      "aliases": [
+        "Бирки"
+      ]
+    },
+    {
+      "name": "Бірки (Волинська)",
+      "lat": 51.8102,
+      "lon": 25.2005,
+      "kind": "village",
+      "obl": "volyn",
+      "rank": 2,
+      "aliases": [
+        "Бирки"
+      ]
+    },
+    {
+      "name": "Бірки (Полтавська)",
+      "lat": 50.1227,
+      "lon": 34.1725,
+      "kind": "village",
+      "obl": "poltava",
+      "rank": 2,
+      "aliases": [
+        "Борки"
+      ]
+    },
+    {
+      "name": "Бірки (Волинська)",
+      "lat": 51.2465,
+      "lon": 24.0757,
+      "kind": "village",
+      "obl": "volyn",
+      "rank": 2,
+      "aliases": [
+        "Бирки"
+      ]
+    },
+    {
+      "name": "Бірки (Харківська)",
+      "lat": 49.691,
+      "lon": 36.044,
+      "kind": "village",
+      "obl": "kharkiv",
+      "rank": 2,
+      "aliases": [
+        "Борки"
+      ]
+    },
+    {
+      "name": "Бірки (Полтавська)",
+      "lat": 49.6394,
+      "lon": 33.8091,
+      "kind": "village",
+      "obl": "poltava",
+      "rank": 2,
+      "aliases": [
+        "Борки"
+      ]
+    },
+    {
+      "name": "Бірки (Сумська)",
+      "lat": 50.4997,
+      "lon": 34.0444,
+      "kind": "village",
+      "obl": "sumy",
+      "rank": 2,
+      "aliases": [
+        "Борки"
+      ]
+    },
+    {
+      "name": "Бірки (Кіровоградська)",
+      "lat": 48.9462,
+      "lon": 32.2953,
+      "kind": "village",
+      "obl": "kropyv",
+      "rank": 2,
+      "aliases": [
+        "Бирки"
+      ]
+    },
+    {
+      "name": "Бірки (Чернігівська)",
+      "lat": 51.516,
+      "lon": 30.8556,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "Бирки"
+      ]
+    },
+    {
+      "name": "Бірки (Київ)",
+      "lat": 50.9527,
+      "lon": 31.0097,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": [
+        "Бирки"
+      ]
+    },
+    {
+      "name": "Бірки (Волинська)",
+      "lat": 50.4695,
+      "lon": 24.4235,
+      "kind": "village",
+      "obl": "volyn",
+      "rank": 2,
+      "aliases": [
+        "Бирки"
+      ]
+    },
+    {
+      "name": "Бірки (Київ)",
+      "lat": 50.5108,
+      "lon": 31.4396,
+      "kind": "village",
+      "obl": "kyiv_c",
+      "rank": 2,
+      "aliases": [
+        "Бирки"
+      ]
+    },
+    {
+      "name": "Чорнобиль",
+      "lat": 51.2701,
+      "lon": 30.2197,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 1,
+      "aliases": [
+        "Чернобил",
+        "Чернобыль",
+        "Чернобыл"
+      ]
+    },
+    {
+      "name": "Томашгород (Рівненська)",
+      "lat": 51.3698,
+      "lon": 27.0683,
+      "kind": "village",
+      "obl": "rivne",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Томашгород (Рівненська)",
+      "lat": 51.3059,
+      "lon": 27.0687,
+      "kind": "village",
+      "obl": "rivne",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Крижопіль",
+      "lat": 48.3821,
+      "lon": 28.8677,
+      "kind": "village",
+      "obl": "vinnytsia",
+      "rank": 2,
+      "aliases": [
+        "Крыжопіль",
+        "Крыжополь",
+        "Крыжопиль"
+      ]
+    },
+    {
+      "name": "Томашпіль (Вінницька)",
+      "lat": 48.5369,
+      "lon": 28.513,
+      "kind": "village",
+      "obl": "vinnytsia",
+      "rank": 2,
+      "aliases": [
+        "Томашполь"
+      ]
+    },
+    {
+      "name": "Томашпіль (Вінницька)",
+      "lat": 49.5407,
+      "lon": 28.1222,
+      "kind": "village",
+      "obl": "vinnytsia",
+      "rank": 2,
+      "aliases": [
+        "Томашпиль"
+      ]
+    },
+    {
+      "name": "Вендичани",
+      "lat": 48.6152,
+      "lon": 27.7939,
+      "kind": "village",
+      "obl": "vinnytsia",
+      "rank": 2,
+      "aliases": [
+        "Вендичаны",
+        "Вэндычаны"
+      ]
+    },
+    {
+      "name": "Нечаяне",
+      "lat": 46.9442,
+      "lon": 31.5511,
+      "kind": "village",
+      "obl": "mykolaiv",
+      "rank": 2,
+      "aliases": [
+        "Нечаянное"
+      ]
+    },
+    {
+      "name": "Рибаківка",
+      "lat": 46.6233,
+      "lon": 31.3647,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Рыбаковка"
+      ]
+    },
+    {
+      "name": "Грибівка",
+      "lat": 46.2093,
+      "lon": 30.5606,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Грибовка"
+      ]
+    },
+    {
+      "name": "Лоцкине (Миколаївська)",
+      "lat": 47.2053,
+      "lon": 32.3914,
+      "kind": "village",
+      "obl": "mykolaiv",
+      "rank": 2,
+      "aliases": [
+        "Лоцкино"
+      ]
+    },
+    {
+      "name": "Лоцкине (Кіровоградська)",
+      "lat": 47.5268,
+      "lon": 32.7515,
+      "kind": "village",
+      "obl": "kropyv",
+      "rank": 2,
+      "aliases": [
+        "Лоцкино"
+      ]
+    },
+    {
+      "name": "Августівка (Одеська)",
+      "lat": 46.6399,
+      "lon": 30.6489,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Августовка"
+      ]
+    },
+    {
+      "name": "Августівка (Тернопільська)",
+      "lat": 49.5862,
+      "lon": 25.0973,
+      "kind": "village",
+      "obl": "ternopil",
+      "rank": 2,
+      "aliases": [
+        "Августовка"
+      ]
+    },
+    {
+      "name": "Августівка (Чернігівська)",
+      "lat": 50.7905,
+      "lon": 32.36,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "Августовка"
+      ]
+    },
+    {
+      "name": "Високопіль",
+      "lat": 47.8425,
+      "lon": 34.293,
+      "kind": "village",
+      "obl": "zapor",
+      "rank": 2,
+      "aliases": [
+        "Высокополь"
+      ]
+    },
+    {
+      "name": "Тузли (Одеська)",
+      "lat": 45.865,
+      "lon": 30.0977,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Тузлы"
+      ]
+    },
+    {
+      "name": "Тузли (Одеська)",
+      "lat": 46.7002,
+      "lon": 31.3765,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Тузлы"
+      ]
+    },
+    {
+      "name": "Тузла",
+      "lat": 45.2776,
+      "lon": 36.5411,
+      "kind": "village",
+      "obl": "kherson",
+      "rank": 1,
+      "aliases": []
+    },
+    {
+      "name": "Коблеве",
+      "lat": 46.665,
+      "lon": 31.208,
+      "kind": "village",
+      "obl": "odesa",
+      "rank": 2,
+      "aliases": [
+        "Коблево"
       ]
     }
   ]

@@ -172,10 +172,14 @@ class Parser:
         )
 
         events: list[ParsedEvent] = []
-        for line in split_lines(display):
+        lines = split_lines(display)
+        for li, line in enumerate(lines):
             fline = fold(line)
             hits = self.gaz.find(fline, oblast_hint=oblast_hint,
                                  area_center=area_center)
+            if not hits:
+                # "Ьориспіль", "Святощин": one key off a known name
+                hits = self.gaz.typo_hits(line, fline, area_center=area_center)
 
             tm = classify_line(fline)
 
@@ -226,8 +230,11 @@ class Parser:
                     if origin and heading is None and origin[1:] != pos[1:]:
                         heading = bearing_deg((origin[1], origin[2]), (pos[1], pos[2]))
                     geo_conf = 0.6                  # projected, not confirmed there
-                elif region is not None:
-                    pos, geo_conf = region, 0.35    # last resort: vague area centre
+                elif region is not None and not (li == 0 and len(lines) > 1):
+                    # last resort: vague area centre - but never for the header
+                    # line of a multi-line post ("Загальна по мопедам:"), which
+                    # would become a phantom track at an oblast named below
+                    pos, geo_conf = region, 0.35
                 elif src is not None:
                     pos, src = src, None
 

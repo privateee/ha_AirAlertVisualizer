@@ -80,13 +80,18 @@ _FOLD_MAP = str.maketrans({
 })
 
 
+# "в напрямку н.п. Теплик", "смт Олишівка": the settlement-type prefix sits
+# between the preposition and the name and hid the direction
+_SETTLEMENT_PREFIX = re.compile(r"(?<![а-яa-z])(?:н\.\s?п\.|смт\.?|с-ще)\s*", re.I)
+
+
 def fold(text: str) -> str:
     """Aggressive form used by every matcher (threats, geo, directions).
 
     Lower-cased, emoji-free, and with the uk/ru-only letters collapsed so a
     single vocabulary list covers both languages and most typos.
     """
-    return normalize(text).translate(_FOLD_MAP)
+    return _SETTLEMENT_PREFIX.sub("", normalize(text)).translate(_FOLD_MAP)
 
 
 _HARD_SPLIT = re.compile(r"[\r\n]+|🅿️|🔄|➡️|⤵️|•|●|▪️?|;| \+ | та (?=\d)")

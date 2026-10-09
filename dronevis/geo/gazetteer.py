@@ -41,7 +41,9 @@ _REGION_WORDS: list[tuple[str, str]] = [
     (r"винниччин", "vinnytsia"), (r"хмельниччин", "khmeln"),
     (r"кировоградщин|кропивниччин", "kropyv"),
     (r"миколаивщин|николаевщин", "mykolaiv"), (r"одещин", "odesa"),
-    (r"херсонщин", "kherson"), (r"запориж|запориз", "zapor"),
+    # adjectives only: "Запоріжжя" / "у Запоріжжі" is the city, and blocking
+    # every "запориж..." key used to make the city unmatchable
+    (r"херсонщин", "kherson"), (r"запоризк|запорожск|запорижчин", "zapor"),
     (r"донеччин", "donetsk"), (r"луганщин", "luhansk"),
     (r"ривненщин|ровенщин", "rivne"), (r"\bволин", "volyn"),
     (r"тернопильщин", "ternopil"), (r"львивщин", "lviv"),
@@ -51,8 +53,38 @@ _REGION_WORDS: list[tuple[str, str]] = [
     (r"курщин|курськ|курско", "ru_kursk"),
     (r"белгородщин|белгородск", "ru_belgorod"),
     (r"гомельщин|гомельск", "by_homel"),
+    # launch areas that are only ever a direction of approach
+    (r"\bкрим\w{0,3}\b|\bкрым\w{0,2}\b|\bкримськ", "crimea"),
+    (r"чорн\w{0,3}\s+мор|черн\w{0,3}\s+мор", "black_sea"),
+    (r"азовськ\w{0,3}\s+мор|азовск\w{0,3}\s+мор|\bазов\w{0,2}\b", "azov_sea"),
+    (r"\bкаспи\w{0,4}", "caspian"),
+    (r"\bбилорус\w{0,4}|\bбеларус\w{0,4}|\bрб\b", "belarus"),
+]
+# "<Сумськ>ій області", "Полтавскую область", "Київської обл." - oblast
+# adjectives (uk + ru), stem -> oblast key
+_OBLAST_ADJ_STEMS: list[tuple[str, str]] = [
+    ("киив|киев", "kyiv_o"), ("харкив|харьков", "kharkiv"), ("полтав", "poltava"),
+    ("днипропетров|днепропетров", "dnipro"), ("черкас", "cherkasy"),
+    ("черниг[иі]в|чернигов", "chernihiv"), ("сум", "sumy"), ("житомир", "zhytomyr"),
+    ("винниц|винниц", "vinnytsia"), ("хмельниц", "khmeln"),
+    ("кировоград|кропивниц", "kropyv"), ("миколаив|николаев", "mykolaiv"),
+    ("одес", "odesa"), ("херсон", "kherson"), ("запориз|запорож", "zapor"),
+    ("донец", "donetsk"), ("луган", "luhansk"), ("ривнен|ровен", "rivne"),
+    ("волин|волын", "volyn"), ("тернопил|тернопол", "ternopil"), ("львив|львов", "lviv"),
+    (r"ивано[\s-]?франкив|ивано[\s-]?франков", "if"), ("закарпат", "zakarp"),
+    ("чернивец|черновиц", "chernivtsi"), ("брян", "ru_bryansk"), ("кур", "ru_kursk"),
+    ("белгород", "ru_belgorod"),
+]
+_REGION_WORDS += [
+    (rf"\b(?:{stem})\w{{0,7}}\s+обл", key)
+    for stem, key in _OBLAST_ADJ_STEMS
 ]
 _REGION_RE = [(re.compile(p, re.I), k) for p, k in _REGION_WORDS]
+# centres for region keys no gazetteer place belongs to
+_EXTRA_CENTRES = {
+    "crimea": (45.3, 34.4), "black_sea": (45.0, 31.5), "azov_sea": (46.2, 36.5),
+    "caspian": (42.5, 50.0), "belarus": (52.5, 28.0),
+}
 # a suffix like "...щина / ...ччина / ... область" turns a city name into a
 # region name ("Київ" -> "Київщина")
 _REGION_TAIL_RE = re.compile(r"(щин|ччин|облас)", re.I)
@@ -72,7 +104,78 @@ _OBLAST_LABEL = {
     "zakarp": "Закарпатська обл.", "chernivtsi": "Чернівецька обл.",
     "ru_bryansk": "Брянська обл. (рф)", "ru_kursk": "Курська обл. (рф)",
     "ru_belgorod": "Бєлгородська обл. (рф)", "by_homel": "Гомельська обл. (бр)",
+    "crimea": "Крим", "black_sea": "Чорне море", "azov_sea": "Азовське море",
+    "caspian": "Каспійське море", "belarus": "Білорусь",
 }
+
+
+# "у Миколаївському районі", "Броварський р-н", "Белоцерковском районе": a
+# district (raion) named after its centre town - the town is the best position
+# we have. Runs on folded text, where "-ськ-/-цьк-" are "-ск-/-цк-".
+_RAION_RE = re.compile(
+    r"(?<![а-яёa-z0-9\-])([а-я\-]{3,}?)(ск|цк|зк)"
+    r"(?:ому|ого|ий|им|ии|ом|ои|ая|ую|и|е)?\s+(?:район\w*|р-н\w*|р\.\s?н\.?)",
+    re.I)
+_OBLAST_AFTER_RE = re.compile(r"\s+облас|\s+обл\b")
+# adjective stems whose town name isn't derivable by the rules in _raion_keys
+_RAION_IRREGULAR = {
+    "билоцеркив": "била церква", "белоцерков": "белая церковь",
+    "ромен": "ромни", "золотони": "золотоноша",
+}
+
+# Typos: one wrong key on a Ukrainian / Russian ЙЦУКЕН keyboard, one extra
+# letter, or two letters swapped ("Ьориспіль", "Святощин", "Виноградао").
+# Deliberately NOT a general fuzzy match: "Лісники" is one letter from a
+# different real village ("Лиснівка"), so a *missing* letter is never guessed.
+_KEY_ROWS = ("йцукенгшщзхї", "фівапролджє", "ячсмитьбю",
+             "йцукенгшщзхъ", "фывапролджэ", "ячсмитьбю")
+
+
+def _key_neighbours() -> dict[str, set[str]]:
+    nb: dict[str, set[str]] = {}
+    for layout in (_KEY_ROWS[:3], _KEY_ROWS[3:]):
+        for r, row in enumerate(layout):
+            for i, ch in enumerate(row):
+                near = nb.setdefault(ch, set())
+                for rr in (r - 1, r, r + 1):
+                    if 0 <= rr < len(layout):
+                        for j in (i - 1, i, i + 1):
+                            if 0 <= j < len(layout[rr]) and layout[rr][j] != ch:
+                                near.add(layout[rr][j])
+    return nb
+
+
+_NEIGHBOURS = _key_neighbours()
+_CAP_WORD_RE = re.compile(r"(?<![А-Яа-яЁёІіЇїЄєҐґ'’ʼ])[А-ЯЁІЇЄҐЬ][а-яёіїєґь'’ʼ]{4,}")
+
+
+def _typo_variants(word: str) -> set[str]:
+    out: set[str] = set()
+    for i, ch in enumerate(word):
+        out.add(word[:i] + word[i + 1:])                      # an extra letter
+        for n in _NEIGHBOURS.get(ch, ()):
+            out.add(word[:i] + n + word[i + 1:])              # a neighbouring key
+        if i + 1 < len(word):
+            out.add(word[:i] + word[i + 1] + ch + word[i + 2:])  # swapped pair
+    out.discard(word)
+    return out
+
+
+def _raion_keys(stem: str, suffix: str) -> list[str]:
+    """Town-name candidates for a district adjective, most likely first."""
+    if stem in _RAION_IRREGULAR:
+        return [_RAION_IRREGULAR[stem]]
+    keys = [stem, stem + suffix, stem + suffix + "ий", stem + "а", stem + "е",
+            stem + "и", stem + "ка", stem + "я", stem + "о"]
+    if suffix == "цк":
+        keys.insert(1, stem + "к")            # Кременчуцький -> Кременчук
+    if stem.endswith("в"):
+        keys.append(stem[:-1])                # Дніпровський -> Дніпро
+    if stem.endswith("ин"):
+        keys.append(stem[:-2] + "а")          # Шосткинський -> Шостка
+    if stem.endswith("ив"):
+        keys.append(stem[:-2] + "ове")        # Синельниківський -> Синельникове
+    return keys
 
 
 @dataclass(slots=True)
@@ -105,6 +208,13 @@ def _decline(f: str) -> set[str]:
     nothing); we do NOT shorten to a bare stem (that would over-match)."""
     parts = f.rsplit(" ", 1)
     head, last = (parts[0] + " ", parts[1]) if len(parts) == 2 else ("", f)
+    # plural town names: "з Черкас", "біля Прилук", "Петрівців", "у Черкасах"
+    if len(last) >= 6 and last[-1] == "и":
+        stem = last[:-1]
+        forms = {last, stem, stem + "ах", stem + "ам"}
+        if stem.endswith("ц"):
+            forms.add(stem + "ив")
+        return {head + x for x in forms}
     # >=4, not >=5: short vowel-ending names ("Мена" -> "мени"/"мену") need
     # this too, not just longer ones ("Троєщина").
     if len(last) < 4 or last[-1] not in "аяое":
@@ -189,7 +299,8 @@ class Gazetteer:
         obl = self.detect_oblast(folded_text)
         if obl is None:
             return None
-        return _OBLAST_LABEL.get(obl, obl), self._obl_center.get(obl, (50.45, 30.52))
+        centre = self._obl_center.get(obl) or _EXTRA_CENTRES.get(obl, (50.45, 30.52))
+        return _OBLAST_LABEL.get(obl, obl), centre
 
     # -- resolution --------------------------------------------------------
     def _pick(
@@ -245,13 +356,77 @@ class Gazetteer:
             swallowed = folded_text[m.end(1): m.end(0)]
             if key[-1:] in "іи" and swallowed[:1] == "ш":
                 continue
+            # "Черкаська область", "Київської обл." - an oblast adjective (the
+            # region matcher owns those), not the town the key belongs to
+            if swallowed and _OBLAST_AFTER_RE.match(folded_text, m.end()):
+                continue
             span = (m.start(), m.end())
             if any(s <= span[0] < e for s, e in seen_spans):
                 continue
             seen_spans.append(span)
             place = self._pick(list(cands), oblast_hint, area_center)
             hits.append(PlaceHit(place, span[0], span[1], m.group(0)))
+
+        for m in _RAION_RE.finditer(folded_text):
+            if any(s <= m.start() < e or m.start() <= s < m.end() for s, e in seen_spans):
+                continue
+            for key in _raion_keys(m.group(1).lower(), m.group(2).lower()):
+                cands = self._by_key.get(key)
+                if cands:
+                    place = self._pick(list(cands), oblast_hint, area_center)
+                    seen_spans.append((m.start(), m.end()))
+                    hits.append(PlaceHit(place, m.start(), m.end(), m.group(0)))
+                    break
+        hits.sort(key=lambda h: h.start)
         return hits
+
+    def typo_hits(
+        self, line: str, folded_line: str, *,
+        area_center: tuple[float, float] | None = None,
+    ) -> list[PlaceHit]:
+        """Places for capitalised words in ``line`` (as written) that are a
+        keyboard slip away from a known name. For lines where ``find`` found
+        nothing; positions refer to ``folded_line``."""
+        hits: list[PlaceHit] = []
+        for m in _CAP_WORD_RE.finditer(line):
+            word = m.group(0)
+            place = self.typo_place(word, area_center=area_center)
+            if place is None:
+                continue
+            fw = fold(word)
+            at = folded_line.find(fw) if fw else -1
+            if at >= 0:
+                hits.append(PlaceHit(place, at, at + len(fw), fw))
+        return hits
+
+    def typo_place(
+        self, word: str, *, area_center: tuple[float, float] | None = None,
+        max_km: float = 200.0,
+    ) -> Place | None:
+        """The place a mistyped name most likely means, or None. ``word`` is
+        the token as written (lower-cased, *not* folded - "ь" for "б" is a
+        typo that folding would erase). Only accepted when every plausible
+        reading points to the same place, near the area when one is given."""
+        word = word.lower()
+        if len(word) < 5:
+            return None
+        found: dict[str, Place] = {}
+        for v in _typo_variants(word):
+            fv = fold(v)
+            m = self._scan_re.match(fv)
+            if not m or m.end() != len(fv):
+                continue
+            cands = self._by_key.get(fold(m.group(1)))
+            if not cands:
+                continue
+            p = self._pick(list(cands), None, area_center)
+            found[p.name] = p
+        if len(found) != 1:
+            return None
+        place = next(iter(found.values()))
+        if area_center is not None and haversine_km(place.coord, area_center) > max_km:
+            return None
+        return place
 
     def lookup(self, text: str, **kw) -> PlaceHit | None:
         hits = self.find(fold(text), **kw)

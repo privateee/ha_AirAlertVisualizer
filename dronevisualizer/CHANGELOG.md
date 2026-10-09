@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.19
+
+Better reading of how the channels really write, from ~4000 real posts:
+Zaporizhzhia is recognised again; villages the channels name (Чорнобиль,
+Теплик, Затока, Лісники, Круглик …) and nicknames (Троя, Кроп, Пуща) are on
+the map; district and oblast adjectives ("у Миколаївському районі", "в
+Сумской области"), "курс Теплик", "у західному напрямку", launch origins
+(Крим, Чорне море, Білорусь), slang ("жахнуло", "падає", "Мінус") and simple
+keyboard typos are understood. 17% fewer posts without a map marker, 30% more
+with a heading. The feed now shows the same period as the map window.
+
 ## 0.9.18
 
 Course prediction and danger: tracks show a cone of where they can be in the

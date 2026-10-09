@@ -20,6 +20,7 @@ _WINDOW = 26  # chars of context before a toponym we inspect for a preposition
 _MARKERS: list[tuple[str, list[re.Pattern]]] = [
     ("dest", [re.compile(p, re.I) for p in (
         r"курс\w*\s+(?:на|в|у)\s*$",
+        r"курс\w*\s*$",                       # "курс Теплик", "далі курс Троєщина"
         r"(?:у|в)\s+напрям\w*\s*(?:на|до)?\s*$",
         r"напрямок\s*$",
         r"[ву]\s+б[иі]к\s*$",
@@ -74,12 +75,19 @@ _MARKERS: list[tuple[str, list[re.Pattern]]] = [
 _LAUNCH_RX = re.compile(r"\b(пуск\w*|запуск\w*|старт\w*|зл[іи]т\w*|взлет\w*)\b", re.I)
 # "🔻Зниження Либідська", "Голосіїв зниження", "снижается" - losing height,
 # often right before a strike, so worth its own status
-_DESCENT_RX = re.compile(r"\b(знижен\w*|знижу\w*|снижен\w*|снижа\w*|п[іи]к[іи]ру\w*)\b", re.I)
-_IMPACT_RX = re.compile(r"\b(вибух\w*|прил[ьеі]т\w*|прил[оі]т\w*|детонац\w*|уражен\w*|"
-                        r"работа\s+пво|збит\w*|сбит\w*)\b", re.I)
+# "падає", "впаде на ..." - coming down, about to hit
+_DESCENT_RX = re.compile(r"\b(знижен\w*|знижу\w*|снижен\w*|снижа\w*|п[іи]к[іи]ру\w*|"
+                         r"пада\w*|впаде\w*|упад[еу]\w*)\b", re.I)
+# the text is folded (і -> и), so "приліт" arrives as "прилит"; slang:
+# "жахнуло", "влупило", "бахнуло", "гахнуло"
+_IMPACT_RX = re.compile(r"\b(вибух\w*|взрыв\w*|прил[ьеіи]т\w*|прил[оіи]т\w*|детонац\w*|"
+                        r"уражен\w*|работа\s+пво|збит\w*|сбит\w*|"
+                        r"жахн\w*|влуп\w*|бахн\w*|гахн\w*)\b", re.I)
 _CLEAR_RX = re.compile(
     r"\b(чисто|в[іи]дб[іи]й\w*|отб[оі]й\w*|минув\w*|минул[аои]\w*|прол[еі]т[еі]л\w*\s+повз|"
-    r"пройшл\w*\s+повз|загроз\w*\s+мин\w*|небо\s+чист\w*|все\s+тих\w*)\b", re.I,
+    r"пройшл\w*\s+повз|загроз\w*\s+мин\w*|небо\s+чист\w*|все\s+тих\w*|"
+    # "Мінус" / "минуса" - the target is down (shot down / gone)
+    r"минус\w*)\b", re.I,
 )
 
 
@@ -132,9 +140,24 @@ _COURSE_WORD: list[tuple[re.Pattern, float]] = [
 ]
 
 
+# "у північно-західному напрямку", "➡️ у західному напрямку" (kpszsu) -
+# also the heading itself, not where it comes from
+_DIR_WORD: list[tuple[re.Pattern, float]] = [
+    (re.compile(rf"\b(?:у|в)\s+{adj}\w*\s+напрям", re.I), deg) for adj, deg in (
+        (r"п[іи]вн[іи]чно[\s-]*сх[іи]дн", 45), (r"п[іи]вн[іи]чно[\s-]*зах[іи]дн", 315),
+        (r"п[іи]вденно[\s-]*сх[іи]дн", 135), (r"п[іи]вденно[\s-]*зах[іи]дн", 225),
+        (r"п[іи]вн[іи]чн", 0), (r"п[іи]вденн", 180), (r"сх[іи]дн", 90), (r"зах[іи]дн", 270),
+        (r"северо[\s-]*восточн", 45), (r"северо[\s-]*западн", 315),
+        (r"юго[\s-]*восточн", 135), (r"юго[\s-]*западн", 225),
+        (r"северн", 0), (r"южн", 180), (r"восточн", 90), (r"западн", 270),
+    )
+]
+
+
 def _from_course_word(folded_line: str) -> float | None:
-    """Heading from a bare 'курс <cardinal adjective>' statement, or None."""
-    for rx, deg in _COURSE_WORD:
+    """Heading from a bare 'курс <cardinal adjective>' or 'у <cardinal> напрямку'
+    statement, or None."""
+    for rx, deg in (*_COURSE_WORD, *_DIR_WORD):
         if rx.search(folded_line):
             return deg
     return None
