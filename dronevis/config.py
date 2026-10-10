@@ -138,6 +138,9 @@ class ParseConfig:
     # Вишневе."). For these, a line that names a place but no threat is still
     # treated as an (unidentified) air threat.
     terse_channels: list[str] = field(default_factory=lambda: ["AerisRimor"])
+    # City news channels that mix drone tracking with news, aftermath and
+    # ads (kievreal1). Only short tracking posts are read; they're also terse.
+    news_channels: list[str] = field(default_factory=lambda: ["kievreal1"])
     llm: LLMConfig = field(default_factory=LLMConfig)
 
 
@@ -313,6 +316,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         languages=list(pr.get("languages", ["uk", "ru"])),
         min_confidence=float(pr.get("min_confidence", 0.0)),
         terse_channels=list(pr.get("terse_channels", ["AerisRimor"])),
+        news_channels=list(pr.get("news_channels", ["kievreal1"])),
         llm=llm,
     )
 

@@ -2,6 +2,30 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.22 — 2026-10-10
+
+- **New: city news channels (`parse.news_channels`, default `[kievreal1]`).**
+  kievreal1 mixes drone tracking with news, aftermath, power outages,
+  politics and ads. For these channels only short tracking posts are read:
+  news/aftermath/ads are skipped (they stay in the feed), long articles are
+  skipped, and bare places / short status lines count as sightings
+  ("Вишгород", "Чабани зниження", "Іванків уважно"). On 235 real posts:
+  135 give sightings, no news post produces a marker - previously an
+  Ukrenergo article became an *all clear* for Kyiv and debris "у
+  Дніпровському районі" landed on Dnipro city.
+- **Every channel:** footers ("Надіслати новину @bot / 👉ПІДПИСАТИСЯ",
+  "Дивитись ГРАФІКИ"), promo / support links and siren on/off lines are
+  stripped before parsing - also inside a one-line edited post. "новину"
+  used to match the village "Нове".
+- **Fix: region words were typo-corrected into cities** ("з півночі
+  Чернігівщини на північ Київщини" became a Чернігів → Київ track).
+- **Fix: in a multi-line post the first report line was taken as a header**
+  and became every later line's position.
+- Gazetteer: Ворзель, Вишеньки, Проців, Мотижин, Ясногородка (Vyshhorod
+  raion), Хотів, Страхолісся, Чубинське, Клавдієво-Тарасове (OpenStreetMap
+  coordinates), typo "Наливайлівка"; generated villages "Нове" / "Сад" no
+  longer match the everyday words.
+
 ## 0.9.21 — 2026-10-10
 
 - **Fix: "на Київ з півночі" / "Київ: … в напрямку міста з півночі" put the

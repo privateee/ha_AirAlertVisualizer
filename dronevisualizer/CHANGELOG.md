@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.22
+
+New: city news channels such as **kievreal1** can be added to the channel
+list - only their drone tracking posts reach the map; news, power outages,
+aftermath and ads are ignored (they still show in the feed). Footers, promo
+links and siren on/off lines are ignored for every channel. Fixes: region
+words no longer turn into cities ("Чернігівщини" ≠ Чернігів), and lines of a
+multi-line post are no longer anchored to the first line's place. More
+villages around Kyiv.
+
 ## 0.9.21
 
 Fix: "в напрямку Києва з півночі" put the drone on Kyiv's centre and drew a

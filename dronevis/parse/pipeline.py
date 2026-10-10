@@ -21,7 +21,7 @@ from ..geo.util import bearing_deg, compass, dest_point
 from ..log import get_logger
 from .directions import analyze, is_clear
 from .normalize import (HINT_CIRCLE, extract_count, fold, normalize, split_lines,
-                        strip_hints)
+                        strip_emoji, strip_hints)
 from .threats import FAMILY, ThreatMatch, classify_line
 
 log = get_logger("parse")
@@ -56,6 +56,62 @@ _FROM_SIDE = {
     "SE": "з південного сходу", "S": "з півдня", "SW": "з південного заходу",
     "W": "із заходу", "NW": "з північного заходу",
 }
+
+
+# Lines that are a channel's furniture, not a report (matched on the folded
+# line): footers, subscribe / support / "send us news" links, promo for other
+# channels, and siren on/off announcements.
+_BOILERPLATE_RX = re.compile(
+    r"надислати новину|пидписати|пидписатис|подписат|дивитис\w* график"
+    r"|пидтримати канал|слидкувати за|онлайн-карт|детальнише по руху|канал, де пишуть"
+    r"|побачили якус|надсилайте нам|monobank|https?://|t\.me/|@\w+_bot\b"
+    r"|оголошен\w* повитрян\w* тривог|видбий тривог|отбой тревог|объявлен\w* воздушн\w* тревог",
+)
+# what's left of a line after emoji / filler ("ㅤ", arrows) are stripped
+_FILLER_RX = re.compile(r"[\sㅤㅤ⁠​·•|/\\-]*")
+# ... and the same furniture *inside* a line: an edited post can come as one
+# line, "🚨 КИЇВСЬКА ОБЛАСТЬ - ОГОЛОШЕНА ПОВІТРЯНА ТРИВОГА Бпла на Переяслав
+# ㅤ Надіслати новину @bot 👉ПІДПИСАТИСЯ" - cut the phrases, keep the report.
+_CUT_RX = re.compile(
+    r"(?:[🚨❎]\s*)?(?:(?:м\.\s*)?[А-ЯІЇЄҐA-Z][^\n]{0,30}?\s+-\s+)?"
+    r"(?:оголошен\w*\s+повітрян\w*\s+тривог\w*|відбій\s+тривог\w*)"
+    r"|(?:👉\s*)?надіслати новину.*$|(?:➡️?\s*)?дивитись графіки.*$"
+    r"|(?:👉\s*)?підписати\w*.*$",
+    re.I | re.M,
+)
+
+
+def strip_boilerplate(text: str) -> str:
+    keep = []
+    for line in _CUT_RX.sub(" ", text or "").splitlines():
+        # folded for the words, plain lowercase for links (fold spaces out "/")
+        if _BOILERPLATE_RX.search(fold(line)) or _BOILERPLATE_RX.search(line.lower()):
+            continue
+        if _FILLER_RX.fullmatch(strip_emoji(line)):
+            continue
+        keep.append(line)
+    return "\n".join(keep).strip()
+
+
+# News / aftermath / ads in a city news channel (folded - no "ь", і -> и):
+# damage and casualties, power and transport, prices, politics and quotes.
+_NEWS_RX = re.compile(
+    r"уламк|постраждал|поранен|загинул|загибл|госпитализ|влучан|пожеж|\bгорит|згорив"
+    r"|\bудар|\bдим\b|видключен|график|енерг|свитл|пидстанц|водопостач|метро|тролейбус"
+    r"|трамва|транспорт|знижк|\bгрн\b|\bдтп\b|затримал|синоптик|погод|нафт"
+    r"|кличк|зеленск|трамп|путин|\bрф\b|\bроси[яиюе]\b|кмда|експерт|\bзми\b|нардеп"
+    r"|укренерго|\bтец\b|евакуац|опалювал|наслидк|[ву]насл\w*\s+атак|писля\s+атак|кадри",
+)
+_TRACK_LINE_RX = re.compile(r"бпла|реактив|шахед|мопед|курс\w*\s+на")
+
+
+def is_news(text: str, folded: str) -> bool:
+    """A news-channel post that is not a tracking report."""
+    if _NEWS_RX.search(folded):
+        return True
+    # long prose with at most one tracking line is an article, not a report
+    tracking = sum(1 for ln in folded.splitlines() if _TRACK_LINE_RX.search(ln))
+    return len(text) > 300 and tracking < 2
 
 
 def is_summary(folded_text: str) -> bool:
@@ -152,6 +208,12 @@ class Parser:
         channel: str | None = None,
         area_center: tuple[float, float] | None = None,
     ) -> list[ParsedEvent]:
+        # footers ("Надіслати новину @bot / 👉ПІДПИСАТИСЯ"), promo links and
+        # siren on/off lines carry no report - and "новину" matched the
+        # village "Нове", "Слідкувати за БПЛА" became a drone
+        text = strip_boilerplate(text)
+        if not text:
+            return []
         folded_full = fold(text)
 
         # recap / statistics / siren-status posts stay in the feed but never
@@ -159,18 +221,28 @@ class Parser:
         if is_summary(folded_full):
             return []
 
+        # A city news channel (kievreal1): news, aftermath and ads stay in the
+        # feed, only the short tracking posts are read - and those name just
+        # a place ("Вишгород", "Чабани зниження"), like a terse channel.
+        news = channel in self.cfg.parse.news_channels
+        if news and is_news(text, folded_full):
+            return []
+
         oblast_hint = self.gaz.detect_oblast(folded_full)
         _rh = self.gaz.region_hit(folded_full)       # (label, (lat, lon)) | None
         region = (_rh[0], _rh[1][0], _rh[1][1]) if _rh else None
-        terse = channel in self.cfg.parse.terse_channels
+        terse = news or channel in self.cfg.parse.terse_channels
 
         # A short leading line that names a *precise* place ("Бровари:",
         # "Обухів —") is a good fallback position. Region words no longer
-        # resolve to a place, so this only picks up real settlements.
+        # resolve to a place, so this only picks up real settlements. A first
+        # line that is itself a report ("Реактивний БпЛА курсом на Трипілля")
+        # is not a header - it used to become every later line's position.
         header_place: PlaceHit | None = None
         display = normalize(text, keep_case=True)
         first_line = display.split("\n", 1)[0]
-        if first_line.endswith(":") or len(first_line) <= 40:
+        if first_line.endswith(":") or (
+                len(first_line) <= 40 and classify_line(fold(first_line)) is None):
             hh = self.gaz.find(fold(first_line), oblast_hint=oblast_hint,
                                area_center=area_center)
             header_place = next((h for h in hh if h.place.kind != "oblast"), None)
@@ -190,8 +262,9 @@ class Parser:
             fline = fold(line)
             hits = self.gaz.find(fline, oblast_hint=oblast_hint,
                                  area_center=area_center)
-            if not hits:
-                # "Ьориспіль", "Святощин": one key off a known name
+            if not hits and not self.gaz.region_hit(fline):
+                # "Ьориспіль", "Святощин": one key off a known name - but not a
+                # region word ("на Київщину" read as a misspelt "Києву")
                 hits = self.gaz.typo_hits(line, fline, area_center=area_center)
 
             tm = classify_line(fline)
@@ -210,7 +283,12 @@ class Parser:
                 continue
 
             if tm is None:
-                if terse and hits:
+                # a bare "Київ:" header over the reports is not itself a sighting
+                # only short lines count without a threat word ("Вишгород",
+                # "Чабани зниження") - in a news channel prose that merely
+                # names a place is a story, not a sighting
+                header_only = li == 0 and len(lines) > 1 and first_line.rstrip().endswith(":")
+                if terse and hits and not header_only and (not news or len(line) <= 45):
                     tm = _UNKNOWN_MATCH
                 else:
                     continue
@@ -261,7 +339,7 @@ class Parser:
                     if origin and heading is None and origin[1:] != pos[1:]:
                         heading = bearing_deg((origin[1], origin[2]), (pos[1], pos[2]))
                     geo_conf = 0.6                  # projected, not confirmed there
-                elif region is not None and not (li == 0 and len(lines) > 1):
+                elif region is not None and not news and not (li == 0 and len(lines) > 1):
                     # last resort: vague area centre - but never for the header
                     # line of a multi-line post ("Загальна по мопедам:"), which
                     # would become a phantom track at an oblast named below

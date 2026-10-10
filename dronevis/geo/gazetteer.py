@@ -29,6 +29,11 @@ _PAREN_RE = re.compile(r"\s*\([^)]*\)")
 # must then end: "днипро" must not match inside "днипропетровщина".
 _SUFFIX = r"[а-яёʼ'\-]{0,3}(?![а-яёa-z])"
 
+# Generated (GeoNames) villages named like everyday words: "нові виходи",
+# "новий в районі Козин", "по дитячому садку" matched them far more often
+# than anyone ever reports the villages themselves.
+_WORD_NAMES = {"Нове", "Сад"}
+
 # Region words ("Київщина", "на Харківщині", "Одещина") -> oblast key. Matched
 # independently of the place list so they always resolve to the oblast, never
 # to the same-named city.
@@ -255,6 +260,8 @@ class Gazetteer:
         self._obl_center: dict[str, tuple[float, float]] = {}
 
         for row in data["places"]:
+            if row["name"] in _WORD_NAMES:
+                continue
             keys = tuple(sorted(_keys_for(row["name"], row.get("aliases", []))))
             p = Place(
                 name=row["name"], lat=float(row["lat"]), lon=float(row["lon"]),
