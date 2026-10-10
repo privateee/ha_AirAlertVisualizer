@@ -828,7 +828,8 @@ function renderClusters() {
           color: c.color, weight: 1.5, opacity: 0.6 * op, dashArray: "5 6", interactive: false,
         }).addTo(layer);
       }
-    } else if (c.dest_lat == null && c.heading_deg != null && c.status !== "circling") {
+    } else if (c.dest_lat == null && c.heading_deg != null && c.status !== "circling"
+               && mo.projection !== false) {     // not from a whole-city fix ("Київ")
       const to = destPoint(c.lat, c.lon, c.heading_deg, 28);
       L.polyline([[c.lat, c.lon], to], {
         color: c.color, weight: 2, opacity: 0.7 * op, dashArray: "5 6",

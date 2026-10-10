@@ -15,7 +15,7 @@ def parser():
 @pytest.mark.parametrize("channel,text,slug,place", [
     ("kpszsu", "🏍 На Мінський масив!", "jet_uav", "Мінський масив"),
     ("kpszsu", "🏍 Воскресенка!", "jet_uav", "Воскресенка"),
-    ("kpszsu", "🛵 БпЛА на Харків із півночі", "shahed", "Харків"),
+    ("kpszsu", "🛵 БпЛА на Харків із півночі", "shahed", "Харків (з півночі)"),
     ("war_monitor", "Київ:\n🅿️1х Троєщина", "shahed", "Троєщина"),
     ("war_monitor", "🎮1х Совки 1,8км", "shahed", "Совки"),
     ("war_monitor", "🔻Зниження Либідська", "shahed", "Либідська"),

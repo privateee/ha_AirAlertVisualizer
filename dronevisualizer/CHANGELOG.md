@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.21
+
+Fix: "в напрямку Києва з півночі" put the drone on Kyiv's centre and drew a
+course cone south past the city. Kyiv is now the target and the drone is
+shown on its northern approach, heading in. Drones no longer get forecast
+cones at all (missiles and КАБ still do), and nothing projects a course from
+a mark on a whole city (Київ, Харків…), only from districts.
+
 ## 0.9.20
 
 Fix: the feed was empty when a short map window (e.g. 5 min) was selected.

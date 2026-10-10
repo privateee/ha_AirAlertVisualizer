@@ -17,7 +17,7 @@ import re
 
 from ..config import Config
 from ..geo.gazetteer import Gazetteer, PlaceHit
-from ..geo.util import bearing_deg
+from ..geo.util import bearing_deg, compass, dest_point
 from ..log import get_logger
 from .directions import analyze, is_clear
 from .normalize import (HINT_CIRCLE, extract_count, fold, normalize, split_lines,
@@ -43,6 +43,19 @@ _SUMMARY_RX = re.compile(
     r"|\bдовидков|\bинфографик|\bстатистик",
     re.I,
 )
+
+
+# "в напрямку міста", "на місто", "до міста", "курсом на місто" (folded)
+_TO_CITY_RX = re.compile(
+    r"\b(?:[ву]\s+напрям\w*|[ву]\s+бик|курс\w*\s+на|на|до)\s+мист[аоу]\b")
+# A drone known only by "target + side" is put this far out on that side -
+# outside a city's edge, a few minutes' flight in.
+APPROACH_KM = 15.0
+_FROM_SIDE = {
+    "N": "з півночі", "NE": "з північного сходу", "E": "зі сходу",
+    "SE": "з південного сходу", "S": "з півдня", "SW": "з південного заходу",
+    "W": "із заходу", "NW": "з північного заходу",
+}
 
 
 def is_summary(folded_text: str) -> bool:
@@ -213,6 +226,24 @@ class Parser:
             src = _triple(dr.src)
             heading = dr.heading_deg
             geo_conf = _geo_conf(dr.primary, from_header=False)
+
+            # "Київ: реактивний БпЛА в напрямку міста з півночі" - "the city"
+            # is the header's city, and it's the *target*: the drone is
+            # outside it, coming in. It used to be put on the city centre,
+            # so the course projection ran on past the city ("0 km, moving away").
+            city = _triple(header_place) or pos
+            if city is not None and _TO_CITY_RX.search(fline):
+                dest = city
+                if pos is not None and pos[1:] == city[1:]:
+                    pos = None
+
+            if pos is None and dest is not None and src is None and heading is not None:
+                # target + side of approach only ("на Київ з півночі"): place
+                # it on that side, outside the target, heading in - not on it
+                back = (heading + 180.0) % 360.0
+                lat, lon = dest_point(dest[1], dest[2], back, APPROACH_KM)
+                pos = (f"{dest[0]} ({_FROM_SIDE.get(compass(back), compass(back))})", lat, lon)
+                geo_conf = 0.45
 
             if pos is None:
                 hp = _triple(header_place)

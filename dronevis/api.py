@@ -270,6 +270,10 @@ def create_app(cfg: Config | None = None):
             ):
                 by_cluster[e["cluster_id"]].append(e)
 
+        # a fix on a big city's centre ("Київ", not "Позняки") only says
+        # "somewhere in the city" - no course is projected from it
+        coarse_places = {pl.name for pl in service.gaz.places
+                         if pl.kind == "city" and pl.rank >= 5}
         ref_pt, ref_kind = _latlon(ref), "here"
         if ref_pt is None and area_obj is not None:
             ref_pt, ref_kind = area_center(area_obj), "area"
@@ -281,7 +285,8 @@ def create_app(cfg: Config | None = None):
                 continue
             out.append(_cluster_dto(c, evs, speed_kmh=cfg.dedupe.speed_kmh,
                                     ref=ref_pt, now=now,
-                                    max_age_min=cfg.alarm.active_minutes))
+                                    max_age_min=cfg.alarm.active_minutes,
+                                    coarse_places=coarse_places))
         return {
             "count": len(out), "clusters": out,
             "ref": ({"lat": ref_pt[0], "lon": ref_pt[1], "kind": ref_kind}
@@ -407,7 +412,8 @@ def _json(text: str):
 def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
                  ref: tuple[float, float] | None = None,
                  now: datetime | None = None,
-                 max_age_min: float | None = None) -> dict:
+                 max_age_min: float | None = None,
+                 coarse_places: set[str] | None = None) -> dict:
     """``evs`` is this cluster's events, newest first."""
     now = now or datetime.now(timezone.utc)
     last = c["last_posted_at"]
@@ -433,7 +439,19 @@ def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
     now_pos = dead_reckon(m, now)
     motion = m.to_dict()
     motion["now"] = [round(now_pos[0], 4), round(now_pos[1], 4)] if now_pos else None
-    motion["cone"] = [[round(p[0], 4), round(p[1], 4)] for p in cone(m)]
+    # No forecast wedge for drones: their reports are a place name every few
+    # minutes, often "toward the city from the north" - a 15-20 minute wedge
+    # from that was mostly noise (e.g. running on south past Kyiv). Nor from a
+    # whole-city fix, which says nothing about where in the city it is; there
+    # even the short heading arrow and the "probably here now" mark go.
+    coarse = bool(coarse_places) and c["place_name"] in coarse_places
+    # "unknown" = an untyped sighting ("🅿️1х Козин"), in practice a drone
+    drone = FAMILY.get(c["threat_type"]) in ("drone", "unknown")
+    motion["cone"] = ([] if coarse or drone
+                      else [[round(p[0], 4), round(p[1], 4)] for p in cone(m)])
+    motion["projection"] = not coarse
+    if coarse or drone:
+        motion["now"] = None
 
     return {
         "id": c["id"],

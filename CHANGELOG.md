@@ -2,6 +2,22 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 0.9.21 — 2026-10-10
+
+- **Fix: "на Київ з півночі" / "Київ: … в напрямку міста з півночі" put the
+  drone on the city centre**, so the course prediction ran a cone on south
+  past Kyiv ("0 км … віддаляється"). "The city" now means the header's city
+  and it's the *destination*; a target + side of approach places the mark
+  15 km out on that side ("Київ (з півночі)"), heading in. "Над містом"
+  still means over the city.
+- **No forecast cones for drones** (Shahed, jet, recon, and untyped
+  war_monitor sightings): a place name every few minutes made the wedge
+  mostly noise. The "probably here now" estimate goes with it. Missiles and
+  КАБ keep their cones. Danger / ETA is still computed for drones.
+- **No projection from a whole-city fix** (Київ, Харків, Одеса…): no cone,
+  heading arrow or "now" mark - it only says "somewhere in the city".
+  District fixes (Позняки, ДВРЗ…) are unaffected.
+
 ## 0.9.20 — 2026-10-09
 
 - **Fix: the feed was empty with a short window.** 0.9.19 made the feed show
