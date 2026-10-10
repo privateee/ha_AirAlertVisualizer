@@ -129,6 +129,7 @@ class Database:
             ("cluster", (("count", "INTEGER"), ("count_max", "INTEGER"),
                          ("resolved_at", "TEXT"), ("altitude_m", "INTEGER"))),
             ("event", (("altitude_m", "INTEGER"),)),
+            ("raw_message", (("reply_to", "INTEGER"),)),
         ):
             have = {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
             for col, decl in cols:
@@ -181,14 +182,15 @@ class Database:
 
     # -- raw_message ----------------------------------------------------------
     def upsert_raw_message(
-        self, channel: str, msg_id: int, url: str, posted_at: str, text: str
+        self, channel: str, msg_id: int, url: str, posted_at: str, text: str,
+        reply_to: int | None = None,
     ) -> tuple[int, bool]:
         """Insert a post if new. Returns (row_id, is_new)."""
         with self._lock:
             cur = self._conn.execute(
-                "INSERT INTO raw_message(channel, msg_id, url, posted_at, text, fetched_at) "
-                "VALUES(?,?,?,?,?,?) ON CONFLICT(channel, msg_id) DO NOTHING",
-                (channel, msg_id, url, posted_at, text, utcnow_iso()),
+                "INSERT INTO raw_message(channel, msg_id, url, posted_at, text, fetched_at, reply_to) "
+                "VALUES(?,?,?,?,?,?,?) ON CONFLICT(channel, msg_id) DO NOTHING",
+                (channel, msg_id, url, posted_at, text, utcnow_iso(), reply_to),
             )
             if cur.rowcount:
                 return int(cur.lastrowid), True
@@ -197,6 +199,29 @@ class Database:
                 (channel, msg_id),
             ).fetchone()
             return int(row["id"]), False
+
+    def update_raw_text(self, channel: str, msg_id: int, text: str,
+                        reply_to: int | None = None) -> bool:
+        """Correct a stored post's text (e.g. replies saved as their quote)
+        and record what it replies to. Returns True if anything changed; a
+        re-parse of its window picks it up."""
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE raw_message SET text=?, reply_to=? WHERE channel=? AND msg_id=? "
+                "AND (text<>? OR reply_to IS NOT ?)",
+                (text, reply_to, channel, msg_id, text, reply_to),
+            )
+            return bool(cur.rowcount)
+
+    def reply_clusters(self, channel: str, msg_id: int) -> list[sqlite3.Row]:
+        """Clusters the quoted post's events went to (newest first)."""
+        return self.query(
+            "SELECT DISTINCT e.cluster_id FROM event e "
+            "JOIN raw_message r ON r.id = e.raw_message_id "
+            "WHERE r.channel=? AND r.msg_id=? AND e.cluster_id IS NOT NULL "
+            "ORDER BY e.id DESC",
+            (channel, msg_id),
+        )
 
     def latest_msg_id(self, channel: str) -> int:
         row = self.query_one(

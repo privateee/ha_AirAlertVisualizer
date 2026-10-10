@@ -100,12 +100,55 @@ def test_new_version_reparses_recent_posts_once(monkeypatch):
     cfg.poll.reparse_on_start = False
     monkeypatch.setattr("dronevis.service.Service.ingest_once",
                         lambda self, wait=False: _noop())
+    repairs = []
+    monkeypatch.setattr("dronevis.service.Service.repair_recent_texts",
+                        lambda self, pages=4: repairs.append(pages) or _noop())
 
     for _ in range(2):                         # second start: same version
         with TestClient(create_app(cfg)) as client:
             assert client.get("/api/config").status_code == 200
     assert calls == [48]
+    assert len(repairs) == 1                   # stored texts repaired once, too
 
 
 async def _noop():
     return {}
+
+
+def test_one_bad_channel_does_not_break_the_others(tmp_path, monkeypatch):
+    """A wrong channel address (or a channel that errors / returns nothing)
+    must not stop ingestion, the startup text repair, or the poll for the rest."""
+    from datetime import datetime, timezone
+
+    from dronevis.ingest.base import RawPost
+
+    monkeypatch.setenv("DRONEVIS_DB_PATH", str(tmp_path / "b.db"))
+    monkeypatch.setenv("DRONEVIS_CHANNELS", "broken,t.me/nonexistent_xyz,kpszsu")
+    svc = Service(load_config())
+    assert svc.cfg.sources.channels == ["broken", "nonexistent_xyz", "kpszsu"]
+
+    class FakeSource:
+        async def fetch_backfill(self, channel, pages):
+            if channel == "broken":
+                raise RuntimeError("boom")          # e.g. a malformed page
+            if channel == "nonexistent_xyz":
+                return []                            # wrong address: empty page
+            return [RawPost(channel, 1, "https://t.me/kpszsu/1",
+                            datetime(2026, 10, 11, tzinfo=timezone.utc),
+                            "🏍 Реактивний БпЛА курсом на Київ повз Гостомель")]
+
+        async def fetch_new(self, channel, after_id):
+            return await self.fetch_backfill(channel, 1)
+
+        async def aclose(self):
+            pass
+
+    svc.source = FakeSource()
+    try:
+        stats = asyncio.run(svc.ingest_once(wait=True))
+        assert stats == {"broken": 0, "nonexistent_xyz": 0, "kpszsu": 1}
+        assert svc.db.query_one("SELECT COUNT(*) n FROM event")["n"] >= 1
+        assert asyncio.run(svc.repair_recent_texts(pages=1)) == 0   # no crash either
+        assert asyncio.run(svc.ingest_once()) == {"broken": 0, "nonexistent_xyz": 0, "kpszsu": 0}
+    finally:
+        asyncio.run(svc.aclose())

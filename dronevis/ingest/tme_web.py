@@ -67,6 +67,20 @@ def _node_text(node) -> str:
     return text.strip()
 
 
+def _own_text_node(msg):
+    """The post's own text. A reply also carries the quoted message's text
+    (``js-message_reply_text``, inside ``.tgme_widget_message_reply``) and
+    that comes first in the page - taking the first text node saved every
+    reply as a copy of the message it quotes, losing the new report (half of
+    kpszsu's posts are replies)."""
+    for node in msg.css(".tgme_widget_message_text"):
+        cls = node.attributes.get("class") or ""
+        if "js-message_reply_text" in cls.split():
+            continue
+        return node
+    return None
+
+
 def _parse_page(html_text: str, channel: str) -> list[RawPost]:
     tree = HTMLParser(html_text)
     posts: list[RawPost] = []
@@ -83,8 +97,13 @@ def _parse_page(html_text: str, channel: str) -> list[RawPost]:
             continue
         posted_at = datetime.fromisoformat(dt_attr).astimezone(timezone.utc)
 
-        text_node = msg.css_first(".tgme_widget_message_text")
-        text = _node_text(text_node)
+        text = _node_text(_own_text_node(msg))
+        # a reply links to the quoted post: "https://t.me/kpszsu/85006"
+        reply_to = None
+        rep = msg.css_first("a.tgme_widget_message_reply")
+        if rep is not None:
+            rm = re.search(r"/(\d+)(?:\?.*)?$", rep.attributes.get("href") or "")
+            reply_to = int(rm.group(1)) if rm else None
         if not text:
             # media-only / service post - skip, nothing to geolocate
             continue
@@ -96,6 +115,7 @@ def _parse_page(html_text: str, channel: str) -> list[RawPost]:
                 url=f"https://t.me/{data_post}",
                 posted_at=posted_at,
                 text=text,
+                reply_to=reply_to,
             )
         )
     posts.sort(key=lambda p: p.msg_id)

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0
+
+First stable release.
+
+Fix: replies were saved as the post they quote, so about half of kpszsu's
+reports were lost - the main reason far fewer marks showed up. Replies now
+keep their own text and continue the quoted drone's track ("Також…" / "Ще
+один…" replies stay separate drones). After the update the recent posts of
+every channel are re-read once in the background and corrected. Channel
+names can be entered as `kievreal1`, `@kievreal1` or `t.me/kievreal1`; a
+wrong name only logs a warning and never stops the other channels.
+
 ## 0.9.22
 
 New: city news channels such as **kievreal1** can be added to the channel

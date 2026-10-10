@@ -14,6 +14,7 @@ class RawPost:
     url: str
     posted_at: datetime      # timezone-aware UTC
     text: str
+    reply_to: int | None = None   # msg_id of the post this one replies to
 
     @property
     def posted_at_iso(self) -> str:

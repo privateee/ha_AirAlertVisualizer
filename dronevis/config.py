@@ -8,6 +8,7 @@ the code gets attribute access and sane defaults instead of dict spelunking.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -249,7 +250,7 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     src = raw.get("sources", {}) or {}
     sources = SourcesConfig(
         backend=src.get("backend", "tme_web"),
-        channels=list(src.get("channels") or _DEFAULT_CHANNELS),
+        channels=channel_names(src.get("channels") or _DEFAULT_CHANNELS),
         backfill_pages=int(src.get("backfill_pages", 3)),
         user_agent=src.get("user_agent", _default(SourcesConfig, "user_agent")),
         request_timeout=float(src.get("request_timeout", 20.0)),
@@ -315,8 +316,8 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     parse = ParseConfig(
         languages=list(pr.get("languages", ["uk", "ru"])),
         min_confidence=float(pr.get("min_confidence", 0.0)),
-        terse_channels=list(pr.get("terse_channels", ["AerisRimor"])),
-        news_channels=list(pr.get("news_channels", ["kievreal1"])),
+        terse_channels=channel_names(pr.get("terse_channels", ["AerisRimor"])),
+        news_channels=channel_names(pr.get("news_channels", ["kievreal1"])),
         llm=llm,
     )
 
@@ -383,6 +384,27 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     return cfg
 
 
+_CHANNEL_PREFIX_RX = re.compile(r"^(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me)/(?:s/)?", re.I)
+
+
+def channel_name(value: str) -> str:
+    """The bare channel name from what people paste: "kievreal1",
+    "@kievreal1", "t.me/kievreal1", "https://t.me/s/kievreal1/123". Anything
+    but the bare name used to fetch an empty page - silently, no posts."""
+    s = _CHANNEL_PREFIX_RX.sub("", str(value or "").strip())
+    s = s.lstrip("@").split("?", 1)[0].split("/", 1)[0]
+    return s.strip()
+
+
+def channel_names(values) -> list[str]:
+    out: list[str] = []
+    for v in values or []:
+        name = channel_name(v)
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
 def _apply_env_overrides(cfg: Config) -> None:
     """DRONEVIS_* environment variables win over the YAML file. Lets the
     Home Assistant add-on / a plain Docker run configure everything without
@@ -390,7 +412,7 @@ def _apply_env_overrides(cfg: Config) -> None:
     e = os.environ.get
 
     if v := e("DRONEVIS_CHANNELS"):
-        cfg.sources.channels = [c.strip() for c in v.split(",") if c.strip()]
+        cfg.sources.channels = channel_names(v.split(","))
     if v := e("DRONEVIS_BACKFILL_PAGES"):
         cfg.sources.backfill_pages = int(v)
     if v := e("DRONEVIS_POLL_INTERVAL"):

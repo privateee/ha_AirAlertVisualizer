@@ -83,3 +83,17 @@ def test_footer_and_promo_lines_are_stripped():
 def test_other_channels_keep_their_rules(parser):
     """The news filter is per channel: kpszsu's aftermath line still parses."""
     assert parser.parse("Реактивний БпЛА курсом на Київ повз Гостомель", channel="kpszsu")
+
+
+def test_channel_names_accept_links_and_handles(monkeypatch):
+    """"t.me/kievreal1" in the add-on options fetched t.me/s/t.me/kievreal1 -
+    an empty page, silently: the channel never showed up."""
+    from dronevis.config import channel_names, load_config
+
+    assert channel_names(["t.me/kievreal1", "@kpszsu", "https://t.me/s/war_monitor/47552",
+                          " AerisRimor ", "kievreal1", "https://telegram.me/x?y=1"]) == \
+        ["kievreal1", "kpszsu", "war_monitor", "AerisRimor", "x"]
+    monkeypatch.setenv("DRONEVIS_CHANNELS", "t.me/kievreal1,@kpszsu")
+    cfg = load_config()
+    assert cfg.sources.channels == ["kievreal1", "kpszsu"]
+    assert "kievreal1" in cfg.parse.news_channels       # so the news filter applies

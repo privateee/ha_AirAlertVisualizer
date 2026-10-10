@@ -43,8 +43,13 @@ class Deduper:
 
     # -- public -----------------------------------------------------------
     def assign(
-        self, event_id: int, ev: ParsedEvent, channel: str, posted_at: str
+        self, event_id: int, ev: ParsedEvent, channel: str, posted_at: str,
+        follow: list[int] | None = None,
     ) -> int:
+        """``follow``: clusters of the post this one replies to. A channel
+        replying to its own report is saying that object moved on, so the
+        event continues that track - no distance / speed gate (the channel
+        knows it's the same drone), only a compatible type and a sane age."""
         window = timedelta(minutes=self.cfg.time_window_minutes)
         now = _dt(posted_at)
         since = (now - window).isoformat()
@@ -54,6 +59,18 @@ class Deduper:
 
         family = FAMILY.get(ev.threat_type, "unknown")
         max_span = timedelta(minutes=self.cfg.max_span_minutes)
+
+        for cid in follow or []:
+            c = self.db.query_one("SELECT * FROM cluster WHERE id=?", (cid,))
+            if c is None or c["resolved_at"] is not None:
+                continue
+            cf = FAMILY.get(c["threat_type"], "unknown")
+            if cf != family and "unknown" not in (cf, family):
+                continue                     # a missile reply to a drone report
+            if abs((now - _dt(c["last_posted_at"])).total_seconds()) > 3 * window.total_seconds():
+                continue
+            self._attach(cid, event_id, ev, channel, posted_at)
+            return cid
 
         # the post this event came from - same for every candidate cluster
         mine = (self.db.query_one("SELECT raw_message_id FROM event WHERE id=?", (event_id,))

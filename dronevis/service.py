@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import threading
 from datetime import datetime, timedelta, timezone
 
@@ -13,9 +14,19 @@ from .dedupe import Deduper
 from .geo.gazetteer import Gazetteer
 from .ingest import get_source
 from .log import get_logger
+from .parse.normalize import fold, strip_hints
 from .parse.pipeline import Parser
 
 log = get_logger("service")
+
+# A reply that *adds* drones rather than moving the quoted one (folded text,
+# emoji already stripped): "Також реактивні БпЛА …", "Ще один …", "Ще 2 …".
+_ADDS_MORE_RX = re.compile(r"\s*(?:також|ще\b|еще\b|и ще|и еще|плюс\b|\+)")
+
+
+def adds_more(text: str) -> bool:
+    # hint tokens ("⟦jet⟧" for 🏍) would sit in front of "також"
+    return bool(_ADDS_MORE_RX.match(strip_hints(fold(text))))
 
 
 class Service:
@@ -104,26 +115,60 @@ class Service:
             posts = await self.source.fetch_backfill(
                 channel, self.cfg.sources.backfill_pages
             )
+            if not posts:
+                log.warning("no posts at all for channel %r - check the name "
+                            "and that the channel's web preview (t.me/s/%s) works",
+                            channel, channel)
         else:
             posts = await self.source.fetch_new(channel, latest)
 
         new = 0
         for post in posts:
             rid, is_new = self.db.upsert_raw_message(
-                post.channel, post.msg_id, post.url, post.posted_at_iso, post.text
+                post.channel, post.msg_id, post.url, post.posted_at_iso, post.text,
+                post.reply_to,
             )
             if is_new:
                 new += 1
-                self._parse_and_store(rid, channel, post.text, post.posted_at_iso)
+                self._parse_and_store(rid, channel, post.text, post.posted_at_iso,
+                                      post.reply_to)
         return new
+
+    async def repair_recent_texts(self, pages: int = 4) -> int:
+        """Re-read the last few pages of every channel and correct stored
+        posts whose text differs - before 1.0.0 a reply was saved as the
+        message it quotes. Run once after an update, before the re-parse.
+        Network trouble only skips the repair; it never blocks startup."""
+        fixed = 0
+        for channel in self.cfg.sources.channels:
+            try:
+                posts = await self.source.fetch_backfill(channel, pages)
+            except Exception as exc:                   # noqa: BLE001
+                log.warning("text repair: fetch failed for %s: %s", channel, exc)
+                continue
+            for post in posts:
+                if self.db.update_raw_text(post.channel, post.msg_id, post.text,
+                                           post.reply_to):
+                    fixed += 1
+        if fixed:
+            log.info("text repair: corrected %d stored post(s)", fixed)
+        return fixed
 
     # -- parsing --------------------------------------------------------
     def _parse_and_store(
-        self, raw_id: int, channel: str, text: str, posted_at: str
+        self, raw_id: int, channel: str, text: str, posted_at: str,
+        reply_to: int | None = None,
     ) -> int:
         events = self.parser.parse(
             text, channel=channel, area_center=self._area_center
         )
+        # A reply ("Вінниччина: … Козятина" <- "… через Хмельниччину у напрямку
+        # Рівненщини") is the channel saying *that* drone moved on: its report
+        # continues the quoted post's track. Not "Також ..." / "Ще один ...",
+        # which add more drones.
+        follow: list[int] = []
+        if reply_to and events and not adds_more(text):
+            follow = [r["cluster_id"] for r in self.db.reply_clusters(channel, reply_to)]
         # one post -> one transaction (one fsync, and atomic)
         with self.db.transaction():
             for ev in events:
@@ -133,7 +178,7 @@ class Service:
                 row["posted_at"] = posted_at
                 eid = self.db.insert_event(row)
                 try:
-                    self.deduper.assign(eid, ev, channel, posted_at)
+                    self.deduper.assign(eid, ev, channel, posted_at, follow=follow)
                 except Exception as exc:
                     log.warning("dedupe failed for event %d: %s", eid, exc)
             self.db.mark_parsed(raw_id)
@@ -172,7 +217,8 @@ class Service:
                 break
             for r in batch:
                 total_events += self._parse_and_store(
-                    r["id"], r["channel"], r["text"], r["posted_at"]
+                    r["id"], r["channel"], r["text"], r["posted_at"],
+                    r["reply_to"] if "reply_to" in r.keys() else None,
                 )
                 total_msgs += 1
         return {"messages": total_msgs, "events": total_events}

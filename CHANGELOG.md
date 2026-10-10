@@ -2,6 +2,33 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.0.0 — 2026-10-11
+
+First stable release: live map + feed of Ukrainian air-threat Telegram
+channels (drones, missiles, КАБ, ballistic), tracks with course and danger to
+you / your area, Home Assistant add-on with MQTT sensors and events, phone
+layout for the HA companion app. From here on, config keys, HA entity names
+and `/api/*` responses change only with a major version.
+
+- **Fix: replies were saved as the message they quote.** t.me shows a
+  reply's quoted text first and the scraper took it, so every reply (about
+  half of kpszsu's posts) became a copy of an older report and its new one
+  was lost - the main reason far fewer marks showed up. Each post now keeps
+  its own text and the id of the post it replies to.
+- **Replies continue the quoted track.** A channel replying to its own
+  report means that drone moved on ("Вінниччина: … Козятина" ↩ "… через
+  Хмельниччину у напрямку Рівненщини"), so the reply joins that track even
+  where distance rules alone wouldn't; replies starting "Також…" / "Ще
+  (один)…" add more drones and stay separate.
+- **After the update the last ~12 pages of every channel are re-read once
+  in the background**, stored posts with wrong (quoted) text are corrected,
+  and the last 48 h are re-parsed.
+- **Channel names in any form**: `kievreal1`, `@kievreal1`,
+  `t.me/kievreal1`, `https://t.me/s/kievreal1` - anything but the bare name
+  used to fetch an empty page silently. A channel with no posts at all now
+  logs a warning.
+- One wrong / broken channel never stops the others (covered by a test).
+
 ## 0.9.22 — 2026-10-10
 
 - **New: city news channels (`parse.news_channels`, default `[kievreal1]`).**

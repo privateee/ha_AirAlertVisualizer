@@ -89,14 +89,25 @@ def create_app(cfg: Config | None = None):
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        upgrade_task = None
         if cfg.poll.reparse_on_start:
             await asyncio.to_thread(service.reparse_all)
+            db.set_meta("parsed_by", __version__)
         elif db.get_meta("parsed_by") != __version__:
             # a new version usually means parser fixes: re-read the recent
             # stored posts once, so the map isn't missing what the old parser
-            # dropped (cheap - two days of posts, not the whole history)
-            await asyncio.to_thread(service.reparse_since, 48)
-        db.set_meta("parsed_by", __version__)
+            # dropped (cheap - two days of posts, not the whole history).
+            # First correct stored texts the old scraper got wrong (replies
+            # saved as the message they quote) - a minute of polite paging,
+            # so it runs in the background instead of holding up startup.
+            async def _upgrade():
+                try:
+                    await service.repair_recent_texts(pages=12)
+                    await asyncio.to_thread(service.reparse_since, 48)
+                    db.set_meta("parsed_by", __version__)   # only once it finished
+                except Exception as exc:                    # noqa: BLE001
+                    log.warning("post-update re-parse failed: %s", exc)
+            upgrade_task = asyncio.create_task(_upgrade())
         if publisher.start():
             await asyncio.to_thread(_publish_ha)
 
@@ -118,6 +129,13 @@ def create_app(cfg: Config | None = None):
         try:
             yield
         finally:
+            if upgrade_task is not None and not upgrade_task.done():
+                # a stop mid-upgrade: it isn't marked done, so it re-runs on
+                # the next start
+                try:
+                    await asyncio.wait_for(upgrade_task, 5)
+                except BaseException:                  # noqa: BLE001
+                    pass
             scheduler.shutdown(wait=False)
             publisher.close()
             await service.aclose()
