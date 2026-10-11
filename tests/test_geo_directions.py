@@ -172,7 +172,7 @@ def test_no_cone_for_drones_or_whole_city_fixes():
              "channels": "[]", "altitude_m": None, "resolved_at": None}
         e = {"lat": lat, "lon": lon, "posted_at": iso, "altitude_m": None,
              "channel": "kpszsu", "url": "u", "raw_line": "", "parse_confidence": 0.9,
-             "r_posted": iso, "count": 1, "status": "moving"}
+             "r_posted": iso, "count": 1, "status": "moving", "place_name": place}
         return _cluster_dto(c, [e], now=t, coarse_places={"Київ"})["motion"]
 
     assert dto("jet_uav", "Позняки", 50.40, 30.63)["cone"] == []          # drone

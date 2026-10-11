@@ -258,6 +258,7 @@ body.sheet-open .stream-head { display: flex; }
   padding-bottom: var(--safe-b);
 }
 .msg { padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.feed-empty { padding: 18px 14px; color: var(--muted, #888); cursor: pointer; line-height: 1.4; }
 .msg:active { background: var(--panel-2); }
 .msg.locatable::after {
   content: "◎ show on map";
@@ -340,7 +341,7 @@ body:not(.is-desktop) .pp-feedhint {
 /* ⌂ reset view / 📌 set default view, under the zoom buttons */
 .view-ctl a { font-size: 15px; line-height: 30px; text-decoration: none; }
 .view-ctl a.saved { background: var(--accent); color: #fff; }
-.view-ctl a[data-act="edges"]:not(.on) { opacity: .45; }
+.view-ctl a[data-act="edges"]:not(.on), .view-ctl a[data-act="pin"]:not(.on) { opacity: .45; }
 .edge-mark.start { border-width: 2px; border-style: solid; }
 .edge-mark.end { box-shadow: 0 0 0 3px rgba(226, 73, 61, .55), 0 1px 4px rgba(0, 0, 0, .5); }
 

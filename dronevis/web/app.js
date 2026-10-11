@@ -73,9 +73,11 @@ const I18N = {
     maybeFalse: "possible false alarm", resetView: "Back to the default view",
     minU: "min", aviaSince: "in the air since", aviaWindow: "launches usually after",
     homePin: "Home (from Home Assistant)", homeRef: "home",
+    pinToggle: "Show the home / location pin (on/off)",
     edgeMarks: "Arrows to tracks outside the view (on/off)", edgeStart: "launch", edgeEnd: "target",
     saveView: "Make this view the default (position and zoom)", viewSaved: "default view saved",
     onMapOn: "Feed: only posts shown on the map (on)",
+    onMapEmpty: "Nothing on the map right now - {n} posts hidden by the 🗺️ filter. Tap to show all.",
     onMapOff: "Feed: only posts shown on the map (off)",
     autoTopOn: "Keep the feed at the newest post: on",
     autoTopOff: "Keep the feed at the newest post: off",
@@ -102,9 +104,11 @@ const I18N = {
     maybeFalse: "можлива хибна тривога", resetView: "Повернутися до типового вигляду",
     minU: "хв", aviaSince: "у повітрі з", aviaWindow: "пуски зазвичай через",
     homePin: "Дім (з Home Assistant)", homeRef: "дому",
+    pinToggle: "Показувати мітку дому / місця (увімк./вимк.)",
     edgeMarks: "Стрілки до цілей поза екраном (увімк./вимк.)", edgeStart: "пуск", edgeEnd: "ціль",
     saveView: "Зробити цей вигляд типовим (позиція і масштаб)", viewSaved: "типовий вигляд збережено",
     onMapOn: "Стрічка: лише те, що на мапі (увімк.)",
+    onMapEmpty: "Зараз на мапі нічого немає — {n} повідомлень приховано фільтром 🗺️. Натисніть, щоб показати всі.",
     onMapOff: "Стрічка: лише те, що на мапі (вимк.)",
     autoTopOn: "Тримати стрічку на найновішому: увімк.",
     autoTopOff: "Тримати стрічку на найновішому: вимк.",
@@ -677,7 +681,7 @@ function drawHere() {
   // danger / ETA are measured from either way
   const home = !state.here && CFG.home ? { lat: CFG.home[0], lon: CFG.home[1] } : null;
   const pt = state.here || home;
-  if (!pt) return;
+  if (!pt || !herePinOn()) return;
   hereMarker = L.marker([pt.lat, pt.lon], {
     icon: L.divIcon({ className: "here-pin", html: home ? "🏠" : "📍", iconSize: [24, 24], iconAnchor: [12, 22] }),
     title: t(home ? "homePin" : "locpin"), interactive: false, keyboard: false,
@@ -866,19 +870,19 @@ function renderClusters() {
     const badge = c.count != null ? String(c.count) : (c.event_count > 1 ? String(c.event_count) : "");
 
     // movement guess: the path through successive reported positions
-    if (Array.isArray(c.track) && c.track.length >= 2) drawTrack(c.track, c.color, op);
+    if (Array.isArray(c.track) && c.track.length >= 2) drawTrack(c.track, c.color, op, c.track_src);
 
     if (c.status === "circling") {
       L.circle([c.lat, c.lon], { radius: 9000, color: c.color, weight: 1,
-        opacity: 0.5 * op, fill: false, dashArray: "3 7" }).addTo(layer);
+        opacity: 0.5 * op, fill: false, dashArray: "3 7", interactive: false }).addTo(layer);
     }
     if (c.missile) drawMissile(c, op);
     if (c.dest_lat != null) {
       L.polyline([[c.lat, c.lon], [c.dest_lat, c.dest_lon]], {
-        color: c.color, weight: 2, opacity: 0.7 * op, dashArray: "5 6",
+        color: c.color, weight: 2, opacity: 0.7 * op, dashArray: "5 6", interactive: false,
       }).addTo(layer);
       L.circleMarker([c.dest_lat, c.dest_lon], {
-        radius: 3, color: c.color, opacity: 0.7 * op, fillOpacity: 0.7 * op,
+        radius: 3, color: c.color, opacity: 0.7 * op, fillOpacity: 0.7 * op, interactive: false,
       }).addTo(layer);
     }
     // where it can be in the next few minutes: a wedge that's as wide as the
@@ -900,7 +904,7 @@ function renderClusters() {
                && mo.projection !== false) {     // not from a whole-city fix ("Київ")
       const to = destPoint(c.lat, c.lon, c.heading_deg, 28);
       L.polyline([[c.lat, c.lon], to], {
-        color: c.color, weight: 2, opacity: 0.7 * op, dashArray: "5 6",
+        color: c.color, weight: 2, opacity: 0.7 * op, dashArray: "5 6", interactive: false,
       }).addTo(layer);
     }
     if (live && mo.now) {
@@ -1078,16 +1082,24 @@ function catmullRom(p0, p1, p2, p3, steps) {
   return out;
 }
 
-function drawTrack(track, color, op) {
+function drawTrack(track, color, op, src) {
   const n = track.length - 1;                     // number of legs
   for (let i = 0; i < n; i += 1) {
     const p0 = track[Math.max(0, i - 1)], p1 = track[i], p2 = track[i + 1];
     const p3 = track[Math.min(n, i + 2)];
     const k = (i + 1) / n;                        // 0..1, oldest -> newest
-    L.polyline([p1, ...catmullRom(p0, p1, p2, p3, 10)], {
+    const pts = [p1, ...catmullRom(p0, p1, p2, p3, 10)];
+    L.polyline(pts, {
       color, weight: 1.5 + 1.8 * k, opacity: (0.12 + 0.78 * k) * op,
       lineJoin: "round", lineCap: "round", interactive: false,
     }).addTo(layer);
+    // tap a leg: the two posts it joins (a wide invisible line, so it's
+    // hittable with a finger; sent to the back so markers still win)
+    if (src && src[i] && src[i + 1]) {
+      L.polyline(pts, { weight: 16, opacity: 0, lineCap: "round" })
+        .bindPopup(legHtml(src[i], src[i + 1], p1, p2), { maxWidth: 300 })
+        .addTo(layer).bringToBack();
+    }
   }
   // the reported places along the way, fading the same way
   track.slice(0, -1).forEach((pt, i) => {
@@ -1097,6 +1109,25 @@ function drawTrack(track, color, op) {
       fillColor: color, fillOpacity: (0.15 + 0.5 * k) * op,
     }).addTo(layer);
   });
+}
+
+function kmBetween(a, b) {
+  const r = Math.PI / 180, dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+
+// popup for one leg of a track: where it came from, which post moved it, how
+// far and how fast that implies
+function legHtml(a, b, pa, pb) {
+  const km = kmBetween(pa, pb);
+  const min = (new Date(b.posted_at) - new Date(a.posted_at)) / 60000;
+  const kmh = min > 0.5 ? Math.round(km / (min / 60)) : null;
+  const row = (s) => `<div>${esc(s.channel)} · <a href="${esc(s.url)}" target="_blank" rel="noopener">${fmtClock(new Date(s.posted_at))}</a>`
+    + `${s.line ? " — " + esc(s.line) : ""}</div>`;
+  return `<div class="pp-h">${esc(a.place || "?")} → ${esc(b.place || "?")}</div>
+    <div class="pp-row">${Math.round(km)} km · ${Math.round(min)} ${t("minU")}${kmh != null ? ` · ~${kmh} ${t("kmh")}` : ""}</div>
+    <div class="pp-src">${row(a)}${row(b)}</div>`;
 }
 
 // A missile's possible trajectory: launch area -> target as a gentle arc,
@@ -1202,13 +1233,21 @@ function addViewControl() {
       box.innerHTML = `<a href="#" role="button" data-act="reset" title="${esc(t("resetView"))}">⌂</a>`
         + `<a href="#" role="button" data-act="save" title="${esc(t("saveView"))}">📌</a>`
         + `<a href="#" role="button" data-act="edges" title="${esc(t("edgeMarks"))}"`
-        + ` class="${edgeMarksOn() ? "on" : ""}">🧭</a>`;
+        + ` class="${edgeMarksOn() ? "on" : ""}">🧭</a>`
+        + `<a href="#" role="button" data-act="pin" title="${esc(t("pinToggle"))}"`
+        + ` class="${herePinOn() ? "on" : ""}">🏠</a>`;
       L.DomEvent.disableClickPropagation(box);
       box.addEventListener("click", (ev) => {
         const btn = ev.target.closest("a[data-act]");
         if (!btn) return;
         ev.preventDefault();
         if (btn.dataset.act === "reset") { resetView(); return; }
+        if (btn.dataset.act === "pin") {
+          lsSet("herePin", herePinOn() ? "0" : "1");
+          btn.classList.toggle("on", herePinOn());
+          drawHere();
+          return;
+        }
         if (btn.dataset.act === "edges") {
           lsSet("edgeMarks", edgeMarksOn() ? "0" : "1");
           btn.classList.toggle("on", edgeMarksOn());
@@ -1238,6 +1277,7 @@ function updateEdgeMarks() {
 }
 
 function edgeMarksOn() { return lsGet("edgeMarks") !== "0"; }
+function herePinOn() { return lsGet("herePin") !== "0"; }
 
 function drawEdgeMarks() {
   const box = $("#edgeMarks");
@@ -1410,6 +1450,15 @@ function renderMessages(allMsgs) {
   ul.innerHTML = "";
   const frag = document.createDocumentFragment();       // one insert, one layout
   const now = Date.now();
+  // 🗺️ on and nothing on the map: say so, instead of a blank feed that looks
+  // like the log was wiped
+  if (!msgs.length && allMsgs.length) {
+    const li = document.createElement("li");
+    li.className = "feed-empty";
+    li.textContent = t("onMapEmpty").replace("{n}", allMsgs.length);
+    li.addEventListener("click", () => $("#onMapBtn").click());
+    frag.appendChild(li);
+  }
   for (const m of msgs) {
     const li = document.createElement("li");
     li.className = "msg";

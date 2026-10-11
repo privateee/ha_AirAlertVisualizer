@@ -579,13 +579,19 @@ def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
 
     # movement guess: successive reported positions, oldest -> newest,
     # consecutive duplicates collapsed
+    # consecutive duplicates collapsed; track_src[i] is the post that put the
+    # track at track[i] (so a leg i -> i+1 can say which report drew it)
     track: list[list[float]] = []
+    track_src: list[dict] = []
     for e in reversed(evs):
         if e["lat"] is None:
             continue
         pt = [round(e["lat"], 4), round(e["lon"], 4)]
         if not track or track[-1] != pt:
             track.append(pt)
+            track_src.append({"channel": e["channel"], "url": e["url"],
+                              "posted_at": e["r_posted"], "place": e["place_name"],
+                              "line": e["raw_line"]})
 
     # course / speed / uncertainty from the timed fixes (see predict.py)
     m = cluster_motion(c, evs, speed_kmh or SPEED_KMH)
@@ -626,6 +632,7 @@ def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
         "compass": compass(heading),
         "heading_observed": m.heading_src == "observed",
         "track": track,
+        "track_src": track_src,
         "motion": motion,
         "danger": assess(m, ref, now, max_age_min) if ref else None,
         "count": c["count"],
