@@ -17,7 +17,7 @@ import re
 
 from ..config import Config
 from ..geo.gazetteer import Gazetteer, PlaceHit
-from ..geo.util import bearing_deg, compass, dest_point
+from ..geo.util import bearing_deg, compass, dest_point, haversine_km
 from ..log import get_logger
 from .directions import analyze, is_clear
 from .normalize import (HINT_CIRCLE, extract_count, fold, normalize, split_lines,
@@ -51,6 +51,8 @@ _TO_CITY_RX = re.compile(
 # A drone known only by "target + side" is put this far out on that side -
 # outside a city's edge, a few minutes' flight in.
 APPROACH_KM = 15.0
+# a "destination" this close to a big city's centre is a district of it
+CITY_DISTRICT_KM = 25.0
 _FROM_SIDE = {
     "N": "з півночі", "NE": "з північного сходу", "E": "зі сходу",
     "SE": "з південного сходу", "S": "з півдня", "SW": "з південного заходу",
@@ -198,6 +200,9 @@ class Parser:
     def __init__(self, cfg: Config, gaz: Gazetteer | None = None):
         self.cfg = cfg
         self.gaz = gaz or Gazetteer()
+        # big cities: a fix on one ("Київ") says only "somewhere in the city"
+        self._big_cities = {pl.name for pl in self.gaz.places
+                            if pl.kind == "city" and pl.rank >= 5}
         self._llm = None
         if cfg.parse.llm.enabled and cfg.parse.llm.provider != "none":
             from .llm import LLMExtractor  # lazy: keep base install light
@@ -358,6 +363,15 @@ class Parser:
                     pos, geo_conf = region, 0.35
                 elif src is not None:
                     pos, src = src, None
+
+            # "Київ: реактивний БпЛА на Теремки" - it's in the city, going to that
+            # district: the district is the best position there is. On the city
+            # centre, every such post was the same coarse point that chained to
+            # anything around (and drew lines to Переяслав / Вороньків).
+            if (pos is not None and dest is not None and pos[0] in self._big_cities
+                    and haversine_km((pos[1], pos[2]), (dest[1], dest[2])) <= CITY_DISTRICT_KM):
+                pos, dest, heading = dest, None, None
+                geo_conf = max(geo_conf, 0.6)
 
             if dest is not None and pos is not None and dest[0] == pos[0]:
                 dest = None

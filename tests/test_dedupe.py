@@ -245,3 +245,20 @@ def test_same_channel_consecutive_close_fixes_chain(db, deduper):
         ids.append(_store(db, deduper, _raw(db, "war_monitor", 10 + i, when),
                           _ev(place_name=name, lat=la, lon=lo), "war_monitor", when))
     assert len(set(ids)) == 1
+
+
+def test_stated_direction_conflict_is_another_drone(db, deduper):
+    """04:25 'повз Переяслав курсом на Київ' (north-west) and 04:44 'з
+    Чернігівщини на Вишгородський район' (coming from the north) were joined
+    into one ~100 km Переяслав -> Вишгород line across Kyiv."""
+    t0 = datetime(2026, 10, 11, 4, 25, tzinfo=timezone.utc)
+    t1 = t0 + timedelta(minutes=19)
+    c1 = _store(db, deduper, _raw(db, "kpszsu", 1, t0.isoformat()),
+                _ev(threat_type="jet_uav", place_name="Переяслав", lat=50.065, lon=31.445,
+                    dest_name="Київ", dest_lat=50.45, dest_lon=30.52, heading_deg=301.0),
+                "kpszsu", t0.isoformat())
+    c2 = _store(db, deduper, _raw(db, "kievreal1", 2, t1.isoformat()),
+                _ev(threat_type="jet_uav", place_name="Вишгород", lat=50.584, lon=30.489,
+                    heading_deg=209.0),
+                "kievreal1", t1.isoformat())
+    assert c1 != c2

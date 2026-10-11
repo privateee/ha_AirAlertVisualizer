@@ -180,3 +180,17 @@ def test_no_cone_for_drones_or_whole_city_fixes():
     assert kyiv["cone"] == [] and kyiv["projection"] is False and kyiv["now"] is None
     district = dto("cruise_missile", "Позняки", 50.40, 30.63)
     assert len(district["cone"]) > 2 and district["projection"] is True
+
+
+def test_city_header_with_district_target_is_at_the_district():
+    """'Київ: реактивний БпЛА на Теремки' - in the city, going to that
+    district: placed at the district, not on the city centre."""
+    from dronevis.config import load_config
+    from dronevis.parse.pipeline import Parser
+
+    p = Parser(load_config())
+    (e,) = p.parse("🏍 Київ: реактивний БпЛА на Теремки", channel="kpszsu")
+    assert e.place_name == "Теремки" and e.dest_name is None
+    # a far destination is still a destination
+    (f,) = p.parse("БпЛА з Броварів на Київ", channel="kpszsu")
+    assert f.place_name == "Бровари" and f.dest_name == "Київ"

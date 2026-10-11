@@ -29,6 +29,7 @@ from .parse.threats import FAMILY, MAX_SPEED_KMH
 
 MISSILE_FAMILIES = ("ballistic", "cruise")
 MISSILE_UPDATE_S = 15 * 60       # a channel's follow-up on its missile, within this
+DIRECTION_CONFLICT_DEG = 90.0    # stated headings further apart: different drones
 
 
 def _dt(iso: str) -> datetime:
@@ -234,6 +235,13 @@ class Deduper:
 
         if ev.lat is not None and c["centroid_lat"] is not None:
             d = haversine_km((ev.lat, ev.lon), (c["centroid_lat"], c["centroid_lon"]))
+            # A report that states its own direction ("з Чернігівщини на
+            # Вишгородський район", coming from the north) is a different drone
+            # than a track flying another way ("повз Переяслав курсом на Київ",
+            # north-west) - however reachable and "downrange" the place looks.
+            if (ev.heading_deg is not None and c["heading_deg"] is not None and d > 5.0
+                    and _angdiff(ev.heading_deg, c["heading_deg"]) > DIRECTION_CONFLICT_DEG):
+                return 0.0
             converging = bool(
                 ev.dest_name and ev.dest_name in {c["place_name"], c["dest_name"]}
             )
