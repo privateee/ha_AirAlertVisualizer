@@ -20,6 +20,9 @@ let hereMarker = null;
 const markerById = new Map();           // cluster id -> its map marker (this render)
 let clusters = [];
 let lastMsgs = [];
+const shownIds = new Set();              // ids of the clusters drawn right now
+const candidateTargets = new Set();      // targets whose candidate arcs are drawn
+const labelSlots = new Map();            // target -> labels already stacked there
 let timer = null;
 let freshBoot = false;                  // freshness ticker installed once
 // request tokens: a slow response from an older refresh (e.g. the timer tick
@@ -66,7 +69,14 @@ const I18N = {
     away: "away", connecting: "Connecting to the DroneVisualizer server…",
     cantReach: "Can't reach the DroneVisualizer server on this address.",
     startWith: "Start it with:  python -m dronevis run   — then this page reconnects automatically.",
-    retry: "retry", altitude: "alt", search: "Search the feed",
+    retry: "retry", altitude: "alt", search: "Search the feed", hidden: "hidden",
+    maybeFalse: "possible false alarm", resetView: "Back to the default view",
+    minU: "min", aviaSince: "in the air since", aviaWindow: "launches usually after",
+    homePin: "Home (from Home Assistant)", homeRef: "home",
+    edgeMarks: "Arrows to tracks outside the view (on/off)", edgeStart: "launch", edgeEnd: "target",
+    saveView: "Make this view the default (position and zoom)", viewSaved: "default view saved",
+    onMapOn: "Feed: only posts shown on the map (on)",
+    onMapOff: "Feed: only posts shown on the map (off)",
     autoTopOn: "Keep the feed at the newest post: on",
     autoTopOff: "Keep the feed at the newest post: off",
     st_moving: "moving", st_circling: "circling", st_descending: "descending",
@@ -88,7 +98,14 @@ const I18N = {
     away: "від вас", connecting: "З'єднання із сервером DroneVisualizer…",
     cantReach: "Не вдається під'єднатися до сервера DroneVisualizer.",
     startWith: "Запустіть:  python -m dronevis run   — сторінка під'єднається сама.",
-    retry: "спроба", altitude: "висота", search: "Пошук у стрічці",
+    retry: "спроба", altitude: "висота", search: "Пошук у стрічці", hidden: "сховано",
+    maybeFalse: "можлива хибна тривога", resetView: "Повернутися до типового вигляду",
+    minU: "хв", aviaSince: "у повітрі з", aviaWindow: "пуски зазвичай через",
+    homePin: "Дім (з Home Assistant)", homeRef: "дому",
+    edgeMarks: "Стрілки до цілей поза екраном (увімк./вимк.)", edgeStart: "пуск", edgeEnd: "ціль",
+    saveView: "Зробити цей вигляд типовим (позиція і масштаб)", viewSaved: "типовий вигляд збережено",
+    onMapOn: "Стрічка: лише те, що на мапі (увімк.)",
+    onMapOff: "Стрічка: лише те, що на мапі (вимк.)",
     autoTopOn: "Тримати стрічку на найновішому: увімк.",
     autoTopOff: "Тримати стрічку на найновішому: вимк.",
     st_moving: "рухається", st_circling: "кружляє", st_descending: "знижується",
@@ -126,7 +143,11 @@ function applyI18n() {
 function autoTopOn() { return lsGet("autoTop") !== "0"; }
 
 function updateFeedTools() {
-  const at = $("#autoTop"), sb = $("#searchBtn"), s = $("#search");
+  const at = $("#autoTop"), sb = $("#searchBtn"), s = $("#search"), om = $("#onMapBtn");
+  if (om) {
+    om.setAttribute("aria-pressed", String(onMapOnly()));
+    om.title = t(onMapOnly() ? "onMapOn" : "onMapOff");
+  }
   if (at) {
     at.setAttribute("aria-pressed", String(autoTopOn()));
     at.title = t(autoTopOn() ? "autoTopOn" : "autoTopOff");
@@ -282,10 +303,14 @@ function applyMapTheme(theme) {
   map.getContainer().classList.toggle("tiles-invert", dark && !CFG.tile_url_dark);
   document.body.classList.toggle("map-dark", dark);
 
+  // the browser / iOS status bar follows the theme too
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", dark ? "#10141b" : "#f3f5f8");
+
   const btn = $("#theme");
   if (btn) {
     btn.textContent = dark ? "☀" : "🌙";
-    btn.title = dark ? "Switch to light map" : "Switch to dark map";
+    btn.title = dark ? "Switch to light theme" : "Switch to dark theme";
   }
 }
 
@@ -364,10 +389,14 @@ async function init() {
     // history-slider step) rebuilds all layers, which was slow on phones
     map = L.map("map", { zoomControl: true, preferCanvas: true })
       .setView(center, a.radius_km && a.radius_km < 150 ? 8 : 6);
+    const home = savedView();
+    if (home) map.setView([home.lat, home.lon], home.z, { animate: false });
+    addViewControl();
     layer.addTo(map);
     fxLayer.addTo(map);
+    map.on("move zoom resize", updateEdgeMarks);
     applyMapTheme(loadMapTheme());
-    if (state.here) drawHere();
+    drawHere();
     applyLayout();                    // again, now that map exists (invalidateSize)
     wire();
   }
@@ -570,6 +599,11 @@ function wire() {
     else if (s.value) { s.value = ""; state.q = ""; loadMessages(); }
     updateFeedTools();
   });
+  $("#onMapBtn").addEventListener("click", () => {
+    lsSet("onMapOnly", onMapOnly() ? "0" : "1");
+    updateFeedTools();
+    renderMessages(lastMsgs);
+  });
   $("#autoTop").addEventListener("click", () => {
     const on = !autoTopOn();
     lsSet("autoTop", on ? "1" : "0");
@@ -612,9 +646,11 @@ function startTimer() {
 
   if (timer) clearInterval(timer);
   if (!state.live) { setStatus("paused"); return; }
-  const every = Math.max(20, CFG.poll_interval || 60) * 1000;
+  // the server's current pace: fast while a threat is active, slow when quiet
+  const every = Math.max(5, pollS || CFG.poll_interval || 60) * 1000;
   timer = setInterval(() => { refresh(); updateFreshness(); }, every);
 }
+let pollS = 0;                  // the server's poll interval right now (api/clusters)
 
 // ---------------------------------------------------------------- my location
 function locateMe() {
@@ -637,10 +673,14 @@ function locateMe() {
 
 function drawHere() {
   if (hereMarker) { map.removeLayer(hereMarker); hereMarker = null; }
-  if (!state.here) return;
-  hereMarker = L.marker([state.here.lat, state.here.lon], {
-    icon: L.divIcon({ className: "here-pin", html: "📍", iconSize: [24, 24], iconAnchor: [12, 22] }),
-    title: t("locpin"), interactive: false, keyboard: false,
+  // your own 📍 if you set one, else 🏠 your Home Assistant home - the point
+  // danger / ETA are measured from either way
+  const home = !state.here && CFG.home ? { lat: CFG.home[0], lon: CFG.home[1] } : null;
+  const pt = state.here || home;
+  if (!pt) return;
+  hereMarker = L.marker([pt.lat, pt.lon], {
+    icon: L.divIcon({ className: "here-pin", html: home ? "🏠" : "📍", iconSize: [24, 24], iconAnchor: [12, 22] }),
+    title: t(home ? "homePin" : "locpin"), interactive: false, keyboard: false,
   }).addTo(map);
 }
 
@@ -662,8 +702,37 @@ function beep() {
 
 // ---------------------------------------------------------------- data
 async function refresh() {
-  await Promise.all([loadClusters(), loadMessages()]);
+  await Promise.all([loadClusters(), loadMessages(), loadAviation()]);
 }
+
+// ✈ МіГ-31К · 12 хв: missile carriers in the air, counting from takeoff;
+// red once inside the type's usual launch window (see aviation.py)
+let aviation = [];
+async function loadAviation() {
+  try {
+    const r = await fetch("api/aviation", NO_STORE);
+    if (!r.ok) return;
+    aviation = (await r.json()).alerts || [];
+  } catch (_) { return; }
+  renderAviation();
+}
+
+function renderAviation() {
+  const box = $("#aviation");
+  if (!box) return;
+  const now = Date.now();
+  box.innerHTML = aviation.map((a) => {
+    const mins = Math.max(0, (now - new Date(a.since).getTime()) / 60000);
+    const [lo, hi] = a.launch_window_min;
+    const dur = mins < 60 ? `${Math.floor(mins)} ${t("minU")}`
+      : `${Math.floor(mins / 60)}:${String(Math.floor(mins % 60)).padStart(2, "0")}`;
+    const tip = `${t("aviaSince")} ${fmtClock(new Date(a.since))} · ${t("aviaWindow")} `
+      + `${lo}–${hi} ${t("minU")} · ${a.channels.join(", ")}`;
+    return `<a class="avia-chip${mins >= lo && mins <= hi ? " window" : ""}" href="${esc(a.url)}"`
+      + ` target="_blank" rel="noopener" title="${esc(tip)}">✈ ${esc(a.label)} · ${dur}</a>`;
+  }).join("");
+}
+setInterval(renderAviation, 20000);
 
 async function loadClusters() {
   const p = new URLSearchParams();
@@ -680,6 +749,10 @@ async function loadClusters() {
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
     if (seq !== clustersSeq) return;         // a newer request already drew
+    if (data.poll_s && data.poll_s !== pollS) {   // the server sped up / slowed down
+      pollS = data.poll_s;
+      if (state.live) startTimer();
+    }
     const prev = clusters;
     clusters = data.clusters || [];
     dangerRef = data.ref || null;
@@ -761,6 +834,9 @@ function renderClusters() {
   rendering = true;
   layer.clearLayers();
   rendering = false;
+  shownIds.clear();
+  candidateTargets.clear();
+  labelSlots.clear();
   // At "now" the server's window is the only filter. Comparing post times to
   // this device's clock hid brand-new markers whenever the clock ran even a
   // few seconds behind real time - they only showed up after reloading the
@@ -776,6 +852,7 @@ function renderClusters() {
     if (c.lat == null) continue;
     if (!live && new Date(c.last_posted_at).getTime() > cutoff) continue;
     if (offCh.size && c.channels.every((ch) => offCh.has(ch))) continue;
+    shownIds.add(c.id);
 
     const age = Math.max(0, (cutoff - new Date(c.last_posted_at).getTime()) / 60000);
     let op = Math.max(0.25, 1 - age / winMin);
@@ -805,6 +882,7 @@ function renderClusters() {
       L.circle([c.lat, c.lon], { radius: 9000, color: c.color, weight: 1,
         opacity: 0.5 * op, fill: false, dashArray: "3 7" }).addTo(layer);
     }
+    if (c.missile) drawMissile(c, op);
     if (c.dest_lat != null) {
       L.polyline([[c.lat, c.lon], [c.dest_lat, c.dest_lon]], {
         color: c.color, weight: 2, opacity: 0.7 * op, dashArray: "5 6",
@@ -887,6 +965,9 @@ function renderClusters() {
     state.pinned = null;                     // its cluster is gone (resolved / aged out)
   }
   markPinned(clusters.find((x) => x.id === state.pinned) || null);
+  // the "only on the map" feed follows what's drawn (area, filters, history)
+  if (onMapOnly()) renderMessages(lastMsgs);
+  updateEdgeMarks();
   updateDangerPill(live);
 }
 
@@ -896,6 +977,7 @@ const kmUnit = () => (lang === "uk" ? "км" : "km");
 function refName() {
   if (!dangerRef) return "";
   if (dangerRef.kind === "here") return t("you");
+  if (dangerRef.kind === "home") return t("homeRef");
   const a = CFG.areas.find((x) => x.key === state.area);
   return a ? a.label : "";
 }
@@ -990,6 +1072,206 @@ function popupHtml(c) {
 }
 
 // small-distance destination point, km -> lat/lon
+// A missile's possible trajectory: launch area -> target as a gentle arc,
+// dashed while it can still change, solid once final ("спуск" / impact), with
+// distance and flight time *next to the target* (that's where the viewer
+// looks). With no launch area named, faint arcs from the usual ones.
+function arcPoints(a, b, n = 24) {
+  const [la1, lo1] = a, [la2, lo2] = b;
+  const dLat = la2 - la1, dLon = lo2 - lo1;
+  // bulge to the left of the direction of flight, ~12% of the length
+  const nx = -dLon * 0.12, ny = dLat * 0.12;
+  const pts = [];
+  for (let i = 0; i <= n; i += 1) {
+    const t = i / n, k = 4 * t * (1 - t);
+    pts.push([la1 + dLat * t + nx * k, lo1 + dLon * t + ny * k]);
+  }
+  return pts;
+}
+
+function missileLabel(km, min) {
+  const kmU = lang === "uk" ? "км" : "km", minU = lang === "uk" ? "хв" : "min";
+  const m = min < 1 ? "<1" : Math.round(min);
+  return `≈${km} ${kmU} · ~${m} ${minU}`;
+}
+
+function drawMissile(c, op) {
+  const m = c.missile;
+  if (!m || !m.to) return;
+  const to = m.to;
+  const launches = m.launch ? [m.launch] : (m.candidates || []);
+  if (!launches.length) return;
+  // several "спуск" on one target: its candidate arcs once, not stacked
+  if (!m.launch) {
+    const key = to.join(",");
+    if (candidateTargets.has(key)) return;
+    candidateTargets.add(key);
+  }
+  const dim = m.maybe_false ? 0.45 : 1;              // quiet threat: likely false
+  for (const s of launches) {
+    const sure = !!m.launch;
+    L.polyline(arcPoints([s.lat, s.lon], to), {
+      color: c.color, weight: sure ? 2.5 : 1.2, interactive: false,
+      opacity: (sure ? 0.85 : 0.45) * op * dim,
+      dashArray: m.final && sure ? null : (sure ? "8 6" : "3 7"),
+    }).addTo(layer);
+    L.marker([s.lat, s.lon], {
+      interactive: false,
+      icon: L.divIcon({ className: "launch-site" + (sure ? " sure" : ""),
+        html: `<span style="color:${c.color}">▲</span>${esc(s.name)}`, iconSize: null }),
+    }).addTo(layer);
+  }
+  L.circleMarker(to, { radius: 14, color: c.color, weight: 2, fill: false,
+    opacity: 0.9 * op, interactive: false }).addTo(layer);
+  let label;
+  if (m.launch && m.km != null) {
+    label = missileLabel(m.km, m.min);
+  } else {
+    const kms = launches.map((s) => s.km), mins = launches.map((s) => s.min);
+    const lo = Math.min(...kms), hi = Math.max(...kms);
+    label = missileLabel(lo === hi ? lo : `${lo}–${hi}`, Math.max(...mins));
+  }
+  if (m.final) label = `${t("st_" + (c.status === "impact" ? "impact" : "descending"))} · ${label}`;
+  if (m.maybe_false) label = `${t("maybeFalse")} · ${label}`;
+  // several missiles on one target: stack their labels instead of overlapping
+  const slotKey = to.join(",");
+  const slot = labelSlots.get(slotKey) || 0;
+  labelSlots.set(slotKey, slot + 1);
+  L.marker(to, {
+    interactive: false,
+    icon: L.divIcon({ className: "missile-label", iconSize: null,
+      html: `<span style="position:relative;top:${slot * 22}px;border-left:3px solid ${c.color};padding-left:4px">${esc(label)}</span>` }),
+  }).addTo(layer);
+}
+
+// ⌂ back to the default view; 📌 make the current position + zoom the default
+// (remembered, and where the map opens). Without one: the area's own view.
+function savedView() {
+  try {
+    const v = JSON.parse(lsGet("homeView") || "null");
+    return v && Number.isFinite(v.lat) && Number.isFinite(v.lon) && Number.isFinite(v.z) ? v : null;
+  } catch (_) { return null; }
+}
+
+function areaView() {
+  const a = CFG.areas.find((x) => x.key === state.area) || CFG.areas[0];
+  if (a.bbox) return { bounds: [[a.bbox[0], a.bbox[1]], [a.bbox[2], a.bbox[3]]] };
+  return { center: a.center || [50.45, 30.52], z: a.radius_km && a.radius_km < 150 ? 8 : 6 };
+}
+
+function resetView() {
+  const v = savedView();
+  if (v) { map.setView([v.lat, v.lon], v.z, { animate: true, duration: 0.25 }); return; }
+  const a = areaView();
+  if (a.bounds) map.fitBounds(a.bounds, { animate: true, duration: 0.25 });
+  else map.setView(a.center, a.z, { animate: true, duration: 0.25 });
+}
+
+function addViewControl() {
+  const Ctl = L.Control.extend({
+    options: { position: "topleft" },
+    onAdd() {
+      const box = L.DomUtil.create("div", "leaflet-bar view-ctl");
+      box.innerHTML = `<a href="#" role="button" data-act="reset" title="${esc(t("resetView"))}">⌂</a>`
+        + `<a href="#" role="button" data-act="save" title="${esc(t("saveView"))}">📌</a>`
+        + `<a href="#" role="button" data-act="edges" title="${esc(t("edgeMarks"))}"`
+        + ` class="${edgeMarksOn() ? "on" : ""}">🧭</a>`;
+      L.DomEvent.disableClickPropagation(box);
+      box.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("a[data-act]");
+        if (!btn) return;
+        ev.preventDefault();
+        if (btn.dataset.act === "reset") { resetView(); return; }
+        if (btn.dataset.act === "edges") {
+          lsSet("edgeMarks", edgeMarksOn() ? "0" : "1");
+          btn.classList.toggle("on", edgeMarksOn());
+          drawEdgeMarks();
+          return;
+        }
+        const c = map.getCenter();
+        lsSet("homeView", JSON.stringify({ lat: +c.lat.toFixed(4), lon: +c.lng.toFixed(4), z: map.getZoom() }));
+        btn.classList.add("saved");
+        setStatus(t("viewSaved"));
+        setTimeout(() => btn.classList.remove("saved"), 1200);
+      });
+      return box;
+    },
+  });
+  map.addControl(new Ctl());
+}
+
+// Tracks outside the current view get an arrow on the map's edge, on the line
+// from the view's centre toward them, so a zoomed-in map never looks empty
+// while something is just off-screen. Close arrows merge (with a count);
+// tapping one flies to that track.
+let edgeRaf = 0;
+function updateEdgeMarks() {
+  if (edgeRaf) return;
+  edgeRaf = requestAnimationFrame(() => { edgeRaf = 0; drawEdgeMarks(); });
+}
+
+function edgeMarksOn() { return lsGet("edgeMarks") !== "0"; }
+
+function drawEdgeMarks() {
+  const box = $("#edgeMarks");
+  if (!box || !map) return;
+  box.innerHTML = "";
+  if (!edgeMarksOn()) return;
+  const size = map.getSize(), W = size.x, H = size.y;
+  if (!W || !H) return;
+  const pad = 18, cx = W / 2, cy = H / 2;
+  const marks = [];
+  // each track's position; a missile also has both ends of its trajectory -
+  // where it starts (launch area, hollow) and where it ends (target, ringed)
+  const points = [];
+  for (const c of clusters) {
+    if (!shownIds.has(c.id) || c.lat == null) continue;
+    points.push({ c, lat: c.lat, lon: c.lon, kind: "pos" });
+    const m = c.missile;
+    if (m && m.launch) points.push({ c, lat: m.launch.lat, lon: m.launch.lon, kind: "start" });
+    if (m && m.to && (m.to[0] !== c.lat || m.to[1] !== c.lon)) {
+      points.push({ c, lat: m.to[0], lon: m.to[1], kind: "end" });
+    }
+  }
+  for (const pt of points) {
+    const c = pt.c;
+    const p = map.latLngToContainerPoint([pt.lat, pt.lon]);
+    if (p.x >= 0 && p.x <= W && p.y >= 0 && p.y <= H) continue;
+    const dx = p.x - cx, dy = p.y - cy;
+    const s = Math.min((cx - pad) / Math.abs(dx || 1e-9), (cy - pad) / Math.abs(dy || 1e-9));
+    const x = cx + dx * s, y = cy + dy * s;
+    const near = marks.find((m) => m.kind === pt.kind && Math.hypot(m.x - x, m.y - y) < 26);
+    if (near) { near.items.push(c); near.pts.push(pt); continue; }
+    marks.push({ x, y, kind: pt.kind, ang: Math.atan2(dy, dx) * 180 / Math.PI + 90, items: [c], pts: [pt] });
+  }
+  const frag = document.createDocumentFragment();
+  for (const m of marks.slice(0, 40)) {
+    const c = m.items[0];
+    const el = document.createElement("div");
+    el.className = `edge-mark ${m.kind}`;
+    el.style.left = `${m.x}px`;
+    el.style.top = `${m.y}px`;
+    el.style.background = m.kind === "start" ? "rgba(16,20,27,.85)" : c.color;
+    el.style.borderColor = m.kind === "start" ? c.color : "";
+    const what = { start: t("edgeStart"), end: t("edgeEnd"), pos: "" }[m.kind];
+    el.title = (what ? what + ": " : "") + m.pts.slice(0, 6).map((p) => (p.kind === "start" ? p.c.missile.launch.name
+      : p.kind === "end" ? (p.c.missile.to_name || t("edgeEnd")) : `${p.c.threat_label} · ${p.c.place_name || ""}`)).join(" | ");
+    el.innerHTML = `<span class="arr" style="transform: rotate(${m.ang}deg)"></span>${m.items.length > 1 ? m.items.length : ""}`;
+    el.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (m.pts.length > 1) {
+        map.fitBounds(L.latLngBounds(m.pts.map((p) => [p.lat, p.lon])).pad(0.3),
+          { animate: true, duration: 0.25 });
+      } else {
+        map.setView([m.pts[0].lat, m.pts[0].lon], Math.max(map.getZoom(), m.kind === "start" ? 6 : 9),
+          { animate: true, duration: 0.25 });
+      }
+    });
+    frag.appendChild(el);
+  }
+  box.appendChild(frag);
+}
+
 function destPoint(lat, lon, bearing, km) {
   const R = 6371, d = km / R, br = (bearing * Math.PI) / 180;
   const la1 = (lat * Math.PI) / 180, lo1 = (lon * Math.PI) / 180;
@@ -1075,8 +1357,17 @@ function wirePopup(popup) {
 }
 
 // ---------------------------------------------------------------- render: stream
-function renderMessages(msgs) {
+// 🗺️ on: the feed lists only posts behind a mark that's on the map right now
+// (siren on/off, news, placeless posts, other areas are hidden)
+function onMapOnly() { return lsGet("onMapOnly") === "1"; }
+
+function renderMessages(allMsgs) {
   const ul = $("#msgs");
+  const msgs = onMapOnly()
+    ? allMsgs.filter((m) => (m.events || []).some((e) => shownIds.has(e.cluster_id)))
+    : allMsgs;
+  const hc = $("#hiddenCount");
+  if (hc) hc.textContent = msgs.length < allMsgs.length ? `${t("hidden")} ${allMsgs.length - msgs.length}` : "";
   // Rebuilding the list resets its scroll, which threw the reader (and a
   // "show in feed" jump) back to the top on every poll. Keep the message at
   // the top of the view where it is; at the very top, stay there for new posts.
@@ -1123,19 +1414,19 @@ function renderMessages(msgs) {
     if (li) ul.scrollTop += li.getBoundingClientRect().top - ul.getBoundingClientRect().top - anchor.off;
   }
 
-  drawTimeline(msgs);
+  drawTimeline(allMsgs);
   if (state.pinned) {
     const c = clusters.find((x) => x.id === state.pinned);
     markPinned(c);
   }
 
   // bottom-sheet peek summary
-  const hot = msgs.filter((m) => (now - new Date(m.posted_at).getTime()) / 60000 < 15).length;
-  const latest = msgs[0];
+  const hot = allMsgs.filter((m) => (now - new Date(m.posted_at).getTime()) / 60000 < 15).length;
+  const latest = allMsgs[0];
   const sum = $("#sheetSummary");
   if (sum) {
     sum.textContent = latest
-      ? `${msgs.length} ${t("inFeed")}${hot ? " · " + hot + " " + t("new") : ""} — ${latest.channel}: ${latest.text.slice(0, 46)}`
+      ? `${allMsgs.length} ${t("inFeed")}${hot ? " · " + hot + " " + t("new") : ""} — ${latest.channel}: ${latest.text.slice(0, 46)}`
       : t("feed");
   }
 }

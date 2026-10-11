@@ -14,14 +14,22 @@ from .dedupe import Deduper
 from .geo.gazetteer import Gazetteer
 from .ingest import get_source
 from .log import get_logger
+from .aviation import active_alerts
+from .geo.launch import THREAT_HOLD_MIN
 from .parse.normalize import fold, strip_hints
 from .parse.pipeline import Parser
+from .parse.threats import FAMILY
 
 log = get_logger("service")
 
 # A reply that *adds* drones rather than moving the quoted one (folded text,
 # emoji already stripped): "Також реактивні БпЛА …", "Ще один …", "Ще 2 …".
 _ADDS_MORE_RX = re.compile(r"\s*(?:також|ще\b|еще\b|и ще|и еще|плюс\b|\+)")
+
+
+# "Відбій загрози …", "отбой угрозы …" (folded)
+_ALL_CLEAR_RX = re.compile(r"\b(?:видбий|отбой)\b")
+_BALLISTIC_WORD_RX = re.compile(r"балист|отрк|искандер|кинджал")
 
 
 def adds_more(text: str) -> bool:
@@ -169,6 +177,8 @@ class Service:
         follow: list[int] = []
         if reply_to and events and not adds_more(text):
             follow = [r["cluster_id"] for r in self.db.reply_clusters(channel, reply_to)]
+        if not events:
+            self._resolve_all_clear(text, channel, posted_at, reply_to)
         # one post -> one transaction (one fsync, and atomic)
         with self.db.transaction():
             for ev in events:
@@ -183,6 +193,56 @@ class Service:
                     log.warning("dedupe failed for event %d: %s", eid, exc)
             self.db.mark_parsed(raw_id)
         return len(events)
+
+    def _resolve_all_clear(self, text: str, channel: str, posted_at: str,
+                           reply_to: int | None) -> int:
+        """A placeless "відбій" ends threats: a reply ("📢 Відбій загрози
+        застосування балістичного озброєння." ↩ the threat post) ends exactly
+        the quoted one; a plain "⚪️ Відбій загрози балістики." ends the
+        ballistic threats of the last hour that haven't come down yet."""
+        f = strip_hints(fold(text))
+        if not _ALL_CLEAR_RX.search(f):
+            return 0
+        if reply_to:
+            ids = [r["cluster_id"] for r in self.db.reply_clusters(channel, reply_to)]
+        elif _BALLISTIC_WORD_RX.search(f):
+            since = (datetime.fromisoformat(posted_at) - timedelta(hours=1)).isoformat()
+            ids = [r["id"] for r in self.db.query(
+                "SELECT id, threat_type FROM cluster WHERE resolved_at IS NULL "
+                "AND last_posted_at >= ? AND last_posted_at <= ? "
+                "AND status NOT IN ('descending', 'impact')", (since, posted_at))
+                if FAMILY.get(r["threat_type"]) == "ballistic"]
+        else:
+            return 0
+        for cid in ids:
+            self.db.update_cluster(cid, {"resolved_at": posted_at})
+        return len(ids)
+
+    def threat_active(self, now: datetime | None = None) -> bool:
+        """Is something going on - poll fast? Any non-"clear" report in the
+        last ``quiet_after_minutes``, a missile threat still within its hold
+        time (unresolved, not hit), or missile carriers in the air."""
+        now = now or datetime.now(timezone.utc)
+        quiet = (now - timedelta(minutes=self.cfg.poll.quiet_after_minutes)).isoformat()
+        if self.db.query_one(
+            "SELECT 1 AS x FROM event WHERE posted_at >= ? AND threat_type <> 'clear' LIMIT 1",
+            (quiet,),
+        ):
+            return True
+        held = (now - timedelta(minutes=max(THREAT_HOLD_MIN.values()))).isoformat()
+        for r in self.db.query(
+            "SELECT threat_type, last_posted_at FROM cluster WHERE resolved_at IS NULL "
+            "AND status <> 'impact' AND last_posted_at >= ?", (held,),
+        ):
+            hold = THREAT_HOLD_MIN.get(FAMILY.get(r["threat_type"]))
+            if hold and r["last_posted_at"] >= (now - timedelta(minutes=hold)).isoformat():
+                return True
+        rows = self.db.query(
+            "SELECT channel, url, posted_at, text FROM raw_message WHERE posted_at >= ? "
+            "ORDER BY posted_at", ((now - timedelta(hours=12)).isoformat(),))
+        posts = [(datetime.fromisoformat(r["posted_at"]), r["channel"], r["url"], r["text"])
+                 for r in rows]
+        return bool(active_alerts(posts, now))
 
     def reparse_all(self) -> dict:
         """Wipe derived data and re-run the parser over every stored post."""

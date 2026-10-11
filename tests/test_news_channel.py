@@ -97,3 +97,8 @@ def test_channel_names_accept_links_and_handles(monkeypatch):
     cfg = load_config()
     assert cfg.sources.channels == ["kievreal1", "kpszsu"]
     assert "kievreal1" in cfg.parse.news_channels       # so the news filter applies
+
+
+def test_outage_news_is_not_a_sighting(parser):
+    """kievreal1, 2026-10-11 09:53: emergency power cuts, not a drone over Kyiv."""
+    assert parser.parse("В КЦ повідомили, що в Києві ввели екстрені" + FOOT, channel=CH) == []

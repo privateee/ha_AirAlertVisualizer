@@ -79,7 +79,8 @@ def expand_alarm_slugs(names: list[str]) -> set[str]:
 def compute_state(db, cfg: Config) -> dict:
     """Snapshot of what is threatening the configured area, ready to publish."""
     area = cfg.default_area
-    centre = area_center(area)
+    # danger to *you*: your home (from Home Assistant) when known
+    centre = cfg.home or area_center(area)
     since = (datetime.now(timezone.utc)
              .timestamp() - cfg.alarm.active_minutes * 60)
     rows = db.query(

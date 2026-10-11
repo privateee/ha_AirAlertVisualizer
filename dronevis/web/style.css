@@ -11,6 +11,23 @@
   --sheet-gap: 40px;            /* map strip left above a fully raised sheet */
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
+/* light theme for the whole UI (header, feed, sheet) - the same ☀/🌙 button
+   as the map; everything below reads these variables */
+body:not(.map-dark) {
+  --bg: #f3f5f8;
+  --panel: #ffffff;
+  --panel-2: #eef1f5;
+  --line: #d3d9e2;
+  --text: #18212d;
+  --muted: #5b6878;
+  --accent: #0a66d1;
+  color-scheme: light;
+}
+body:not(.map-dark) .freshness.ok { color: #1f7a33; border-color: #9fd3ac; }
+body:not(.map-dark) .freshness.warn { color: #8a5a00; border-color: #e3c37a; }
+body:not(.map-dark) #bar .danger-pill.medium { color: #8a5a00; border-color: #e3b44a; background: rgba(255, 183, 3, .18); }
+body:not(.map-dark) .avia-chip:not(.window) { color: #8a5a00; border-color: #e3b44a; background: rgba(255, 183, 3, .16); }
+body:not(.map-dark) .feed-tools .icon-btn { background: var(--panel-2); }
 
 * { box-sizing: border-box; }
 
@@ -131,6 +148,8 @@ body:not(.is-desktop) #freshness {
 #mapWrap { position: absolute; inset: 0; }
 #map { position: absolute; inset: 0; background: var(--panel-2); }
 
+/* history slider: hidden for now (unused) - the map always shows "now" */
+#scrubWrap[hidden] { display: none !important; }
 #scrubWrap {
   position: absolute;
   left: 10px; right: 10px;
@@ -225,6 +244,7 @@ body.sheet-open .stream-head { display: flex; }
   padding: 6px 8px; font: inherit; font-size: 14px; line-height: 1;
 }
 .feed-tools .icon-btn:hover { border-color: var(--accent); }
+.feed-tools .hidden-count { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .feed-tools .icon-btn[aria-pressed="true"],
 .feed-tools .icon-btn[aria-expanded="true"],
 .feed-tools .icon-btn.active { border-color: var(--accent); color: var(--accent); }
@@ -306,6 +326,51 @@ body:not(.is-desktop) .pp-feedhint {
 .map-dark .leaflet-control-attribution a { color: var(--muted); }
 .map-dark #scrubWrap { background: rgba(8, 10, 14, .86); }
 
+/* missile-carrier aviation in the air: a timer since takeoff */
+.aviation { display: inline-flex; gap: 6px; }
+.aviation:empty { display: none; }
+.avia-chip {
+  font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer;
+  padding: 4px 9px; border-radius: 999px; border: 1px solid #6a5a2a;
+  background: rgba(232, 196, 106, .14); color: #e8c46a; text-decoration: none;
+}
+.avia-chip.window { border-color: #d9573f; background: #b3402f; color: #fff;
+  animation: fpulse 1.4s ease-in-out infinite; }
+
+/* ⌂ reset view / 📌 set default view, under the zoom buttons */
+.view-ctl a { font-size: 15px; line-height: 30px; text-decoration: none; }
+.view-ctl a.saved { background: var(--accent); color: #fff; }
+.view-ctl a[data-act="edges"]:not(.on) { opacity: .45; }
+.edge-mark.start { border-width: 2px; border-style: solid; }
+.edge-mark.end { box-shadow: 0 0 0 3px rgba(226, 73, 61, .55), 0 1px 4px rgba(0, 0, 0, .5); }
+
+/* tracks outside the current view: arrows on the map's edge pointing at them */
+#edgeMarks { position: absolute; inset: 0; z-index: 450; pointer-events: none; overflow: hidden; }
+.edge-mark {
+  position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px;
+  border-radius: 50%; pointer-events: auto; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid rgba(255, 255, 255, .85); box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
+  font: 600 11px/1 -apple-system, "Segoe UI", sans-serif; color: #fff;
+}
+.edge-mark .arr { position: absolute; width: 0; height: 0;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-bottom: 7px solid rgba(255, 255, 255, .95); top: -9px; left: 5px; transform-origin: 5px 21px; }
+
+/* missile trajectory: distance / flight time next to the target, launch areas */
+.missile-label {
+  margin: -11px 0 0 18px; white-space: nowrap; pointer-events: none;
+  font: 600 12px/1.2 -apple-system, "Segoe UI", sans-serif; color: #fff;
+  background: rgba(16, 20, 27, .82); border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 6px; padding: 2px 6px;
+}
+.launch-site {
+  margin: -8px 0 0 -6px; white-space: nowrap; pointer-events: none;
+  font: 11px/1.2 -apple-system, "Segoe UI", sans-serif; color: var(--muted);
+  text-shadow: 0 0 3px rgba(0, 0, 0, .9);
+}
+.launch-site.sure { color: #fff; font-weight: 600; }
+.launch-site span { margin-right: 3px; }
 .leaflet-tooltip.count-badge {
   background: transparent; border: none; box-shadow: none;
   padding: 0; margin: 0;

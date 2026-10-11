@@ -55,6 +55,7 @@ MAX_AHEAD_KM = 60.0
 STATIONARY = {"circling", "impact", "clear"}
 
 NEAR_KM = 10.0                   # this close is high danger whatever the course
+CLOSE_KM = 30.0                  # this close and not moving away: at least medium
 DIVE_NEAR_KM = 25.0              # descending this close is high danger too
 ALT_DROP = 0.7                   # latest altitude <= 70% of the previous = descending
 ON_COURSE_KM = 10.0              # a pass this close counts as "toward you"
@@ -239,18 +240,20 @@ def cone(m: Motion, steps: int = 6) -> list[tuple[float, float]]:
 
 
 def _level(dist: float, toward: bool, eta: float | None, moving: bool,
-           reach_min: float, descending: bool = False) -> str:
+           reach_min: float, descending: bool = False, receding: bool = False) -> str:
     if dist <= NEAR_KM or (descending and dist <= DIVE_NEAR_KM):
         return "high"
+    # close to home and not leaving: worth more than "low" whatever the course
+    close = dist <= CLOSE_KM and not receding
     if toward and eta is not None:
         if eta <= 15:
             return "high"
         if eta <= 45:
             return "medium"
-        return "low"
+        return "medium" if close else "low"
     # direction unknown: close in *time* is a worry (500 km is minutes for a
     # ballistic missile, an hour for a Shahed)
-    if not moving and reach_min <= 15:
+    if (not moving and reach_min <= 15) or close:
         return "medium"
     return "low"
 
@@ -299,5 +302,5 @@ def assess(m: Motion, ref: tuple[float, float], now: datetime,
         "receding": receding,
         "stale": over,
         "level": "low" if over else _level(dist, toward, eta, m.moving, dist / v,
-                                           m.descending),
+                                           m.descending, receding),
     }

@@ -22,9 +22,13 @@ from rapidfuzz import fuzz
 
 from .config import Config
 from .db import Database
+from .geo.launch import site_at
 from .geo.util import bearing_deg, haversine_km
 from .parse.pipeline import ParsedEvent
 from .parse.threats import FAMILY, MAX_SPEED_KMH
+
+MISSILE_FAMILIES = ("ballistic", "cruise")
+MISSILE_UPDATE_S = 15 * 60       # a channel's follow-up on its missile, within this
 
 
 def _dt(iso: str) -> datetime:
@@ -89,6 +93,11 @@ class Deduper:
                 continue
             if now - _dt(c["first_posted_at"]) > max_span:
                 continue
+            if family in MISSILE_FAMILIES:
+                score = self._missile_score(ev, c, channel, gap)
+                if score > best_score:
+                    best_score, best_id = score, c["id"]
+                continue
             score = self._score(ev, c, family, channel, gap / 60.0)
             if score > 0:
                 score = self._same_channel_adjust(score, c, ev, event_id, raw_id, channel, now)
@@ -117,6 +126,43 @@ class Deduper:
         return -1
 
     # -- scoring --------------------------------------------------------
+    def _missile_score(self, ev: ParsedEvent, c, channel: str, gap_s: float) -> float:
+        """Ballistic / cruise missiles, reported as threat -> course -> descent:
+
+        * the same launch area from several channels ("Загроза балістики з
+          Курська", "Курськ ОТРК!") is one threat;
+        * the same channel's next post within a few minutes updates *its*
+          missile ("… далі Київ", "Київ — спуск балістики!") rather than
+          adding a point;
+        * after "спуск" / impact the missile is done - its trajectory is final
+          and a further "спуск" ("Третя") is another missile. Only another
+          channel reporting the same descent right away joins it.
+        """
+        same_channel = channel in json.loads(c["channels"])
+        same_place = bool(ev.place_name) and ev.place_name == c["place_name"]
+        if c["status"] == "descending":
+            # "💥 Вибухи в Києві" right after "Київ — спуск": that missile hit
+            if ev.status == "impact" and same_place and gap_s <= 300:
+                return 0.9
+            # the same descent from another channel
+            return 0.9 if (not same_channel and gap_s <= 180 and same_place) else 0.0
+        if c["status"] == "impact":
+            return 0.0
+        ev_site = site_at(ev.lat, ev.lon)
+        c_site = site_at(c["centroid_lat"], c["centroid_lon"])
+        if ev_site is not None:
+            # a report from a launch area is a launch: the same one reported
+            # again (any channel), or a new missile - never the follow-up of
+            # one already on its way ("Вихід Циркону Курськ" after "2х Циркони
+            # далі Київ" is the next launch, not those two turning back)
+            return 0.9 if ev_site == c_site else 0.0
+        if same_channel and gap_s <= MISSILE_UPDATE_S:
+            # the channel's follow-up goes to its most recent missile
+            return 0.85 - gap_s / 100000.0
+        if ev.place_name and ev.place_name == c["place_name"] and gap_s <= 300:
+            return 0.8
+        return 0.0
+
     def _same_channel_adjust(
         self, score: float, c, ev: ParsedEvent, event_id: int, raw_id: int | None,
         channel: str, now: datetime,

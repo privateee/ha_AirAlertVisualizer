@@ -54,6 +54,7 @@
     </div>
 
     <div class="bar-actions">
+      <span id="aviation" class="aviation"></span>
       <button id="dangerPill" class="danger-pill" hidden></button>
       <span id="freshness" class="freshness"></span>
       <label class="live"><input type="checkbox" id="live" checked /> <span data-i18n="live">Live</span></label>
@@ -67,7 +68,8 @@
   <div id="main">
     <div id="mapWrap">
       <div id="map"></div>
-      <div id="scrubWrap">
+      <div id="edgeMarks" aria-hidden="true"></div>
+      <div id="scrubWrap" hidden>
         <input type="range" id="scrub" min="0" max="100" value="100" aria-label="History" />
         <span id="scrubLabel">now</span>
       </div>
@@ -81,6 +83,8 @@
       <div class="stream-head">
         <div class="feed-tools">
           <div id="timeline" aria-hidden="true"></div>
+          <span id="hiddenCount" class="hidden-count"></span>
+          <button id="onMapBtn" class="icon-btn" aria-pressed="false">🗺️</button>
           <button id="autoTop" class="icon-btn" aria-pressed="false">⤒</button>
           <button id="searchBtn" class="icon-btn" aria-expanded="false">🔍</button>
         </div>

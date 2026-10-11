@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.1.0
+
+- **Ballistic / missile threats from Брянськ, Курськ, Бєлгород, Воронеж,
+  Крим** now show for your area, with a trajectory to the target and
+  distance + flight time next to it. One missile is one track (several
+  channels merge, follow-ups update it, "спуск" makes it final). "Відбій"
+  ends a threat; a quiet one is marked as a possible false alarm.
+- **Bombers in the air** (МіГ-31К, Ту-22М3, Ту-95МС / Ту-160): a timer chip
+  from takeoff; relocations are ignored.
+- **Your Home Assistant home** is used for danger and ETA (option
+  `use_ha_home`); threats within 30 km of home look more urgent. The add-on
+  now asks for Home Assistant API access to read it.
+- **Faster updates during a threat**: new option
+  `poll_fast_interval_seconds` (default 15 s); 60 s while quiet.
+- Map: arrows to off-screen tracks (🧭), reset / set default view (⌂ 📌).
+  Feed: "only what's on the map" filter (🗺️). Light theme for the whole UI.
+- More Kyiv-area places and the slang channels use.
+
 ## 1.0.0
 
 First stable release.

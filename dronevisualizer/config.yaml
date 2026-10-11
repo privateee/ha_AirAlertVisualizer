@@ -1,5 +1,5 @@
 name: "DroneVisualizer"
-version: "1.0.0"
+version: "1.1.0"
 slug: "dronevisualizer"
 description: "Ukrainian air-threat Telegram channels on a live map + HA sensors"
 url: "https://github.com/privateee/ha_AirAlertVisualizer"
@@ -8,6 +8,7 @@ arch:
   - amd64
 init: false
 hassio_api: true
+homeassistant_api: true      # read your home's position (Settings -> General)
 services:
   - mqtt:want
 ingress: true
@@ -19,6 +20,8 @@ options:
     - kpszsu
     - vanek_nikolaev
   poll_interval_seconds: 60
+  poll_fast_interval_seconds: 15
+  use_ha_home: true
   backfill_pages: 3
   area_label: "Kyiv + oblast"
   area_center_lat: 50.4501
@@ -39,6 +42,8 @@ schema:
   channels:
     - str
   poll_interval_seconds: int(20,3600)
+  poll_fast_interval_seconds: int(5,600)?
+  use_ha_home: bool?
   backfill_pages: int(1,20)
   area_label: str
   area_center_lat: float

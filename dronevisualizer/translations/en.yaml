@@ -3,10 +3,23 @@ configuration:
     name: Telegram channels
     description: >-
       Public Telegram channels to read (the t.me/s/ web preview, no login
-      needed). Enter the channel name without the @.
+      needed). The name, @name or a t.me link all work.
   poll_interval_seconds:
-    name: Poll interval (seconds)
-    description: How often to fetch new posts from every channel.
+    name: Poll interval when quiet (seconds)
+    description: >-
+      How often to fetch new posts from every channel while nothing is going
+      on.
+  poll_fast_interval_seconds:
+    name: Poll interval during a threat (seconds)
+    description: >-
+      How often to fetch while a threat is active - any report in the last 20
+      minutes, a held missile threat, or bombers in the air. Default 15.
+  use_ha_home:
+    name: Use my Home Assistant home
+    description: >-
+      Measure danger, ETA and missile trajectories from your home (Settings ->
+      General -> location) instead of the area's centre, and show it on the
+      map. Default on.
   backfill_pages:
     name: History depth on first run
     description: >-

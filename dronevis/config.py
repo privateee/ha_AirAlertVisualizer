@@ -72,7 +72,11 @@ class SourcesConfig:
 
 @dataclass(slots=True)
 class PollConfig:
-    interval_seconds: int = 60
+    interval_seconds: int = 60          # while it's quiet
+    # while something is going on (a report in the last quiet_after_minutes,
+    # a held missile threat, bombers in the air): poll this often instead
+    fast_interval_seconds: int = 15
+    quiet_after_minutes: int = 20
     reparse_on_start: bool = False
 
 
@@ -214,6 +218,10 @@ class Config:
     vacuum_days: int = 7           # full VACUUM cadence
     log_level: str = "INFO"
     log_format: str = "text"       # text | json (structured one-line-per-record)
+    # Your home (lat, lon) - the add-on reads it from Home Assistant. Danger,
+    # ETA and missile trajectories are measured against it instead of the
+    # area's centre; the map shows it as the default "you" point.
+    home: tuple[float, float] | None = None
 
     @property
     def default_area(self) -> Area:
@@ -260,6 +268,8 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     poll_raw = raw.get("poll", {}) or {}
     poll = PollConfig(
         interval_seconds=int(poll_raw.get("interval_seconds", 60)),
+        fast_interval_seconds=int(poll_raw.get("fast_interval_seconds", 15)),
+        quiet_after_minutes=int(poll_raw.get("quiet_after_minutes", 20)),
         reparse_on_start=bool(poll_raw.get("reparse_on_start", False)),
     )
 
@@ -379,9 +389,28 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
         vacuum_days=int(db_raw.get("vacuum_days", 7)),
         log_level=str(raw.get("log_level", "INFO")).upper(),
         log_format=str(raw.get("log_format", "text")).lower(),
+        home=_latlon_pair(raw.get("home")),
     )
     _apply_env_overrides(cfg)
     return cfg
+
+
+def _latlon_pair(value: Any) -> tuple[float, float] | None:
+    """{lat:, lon:} / [lat, lon] / "lat,lon" -> (lat, lon); None if invalid."""
+    try:
+        if isinstance(value, dict):
+            lat, lon = float(value["lat"]), float(value["lon"])
+        elif isinstance(value, str):
+            lat, lon = (float(x) for x in value.split(",")[:2])
+        elif value is not None:
+            lat, lon = float(value[0]), float(value[1])
+        else:
+            return None
+    except (KeyError, TypeError, ValueError, IndexError):
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180) or (lat == 0 and lon == 0):
+        return None
+    return (lat, lon)
 
 
 _CHANNEL_PREFIX_RX = re.compile(r"^(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me)/(?:s/)?", re.I)
@@ -417,6 +446,10 @@ def _apply_env_overrides(cfg: Config) -> None:
         cfg.sources.backfill_pages = int(v)
     if v := e("DRONEVIS_POLL_INTERVAL"):
         cfg.poll.interval_seconds = int(v)
+    if v := e("DRONEVIS_POLL_FAST_INTERVAL"):
+        cfg.poll.fast_interval_seconds = int(v)
+    if v := e("DRONEVIS_HOME"):
+        cfg.home = _latlon_pair(v) or cfg.home
     if v := e("DRONEVIS_HOST"):
         cfg.server.host = v
     if v := e("DRONEVIS_PORT"):

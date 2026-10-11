@@ -2,6 +2,65 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.0 — 2026-10-11
+
+### Missiles and ballistic threats
+- **Launch areas** (Брянськ, Курськ, Бєлгород, Воронеж, Крим) with the
+  regions each is typically used on. A threat at a launch area ("Загроза
+  ОТРК, Курськ") now shows for an area it can target - it used to be
+  filtered out as "in Russia", so a Kyiv map showed nothing.
+- **Trajectory** launch area -> target as an arc, distance and flight time
+  *next to the target* (≈421 km · ~4 min ballistic, ~6 min Zircon), dashed
+  while it can change, solid once final; labels for one target stack.
+  No launch area named ("Київ — спуск балістики"): faint arcs from the usual
+  ones for that target.
+- **One missile = one track**: one threat from several channels merges; a
+  channel's next post ("… далі Київ") updates its missile instead of adding
+  points; after "спуск" the trajectory is final and a further "спуск" is
+  another missile; "Вибухи" closes the one that descended; a report from a
+  launch area ("Вихід Циркону Курськ") is always a new missile.
+- "Відбій" ends a threat (a reply to the threat post, or war_monitor's
+  "⚪️ Відбій загрози балістики"); a launch-area threat with no follow-up
+  for 10 min is marked "можлива хибна тривога".
+- Missile threats stay on the map past a short window (ballistic 45 min,
+  cruise 90 min after the last report) until resolved or they hit.
+- Parser: ОТРК (Iskander), "спуск / спускається" (descending), "далі X"
+  (destination), "вихід / виходи" (launch).
+
+### Strategic aviation
+- **Takeoff timer** for МіГ-31К, Ту-22М3, Ту-95МС / Ту-160 ("зліт",
+  "в повітрі", "вилетіли"): a header chip counting from takeoff, red inside
+  the type's usual launch window. Relocations ("перебазування",
+  "передислокація", "перелетіли на аеродром") never start one and end a
+  running one; landing / "відбій" / "скасовано" / "не підтверджується" end
+  it; otherwise it times out (10 h strategic, 5 h Ту-22М3, 2 h МіГ-31К).
+
+### Home, polling
+- **Home from Home Assistant** (Settings -> General; add-on option
+  `use_ha_home`, on): danger, ETA, alarm and trajectories are measured from
+  your home, shown as 🏠. Within 30 km of home and not moving away is at
+  least "medium" danger. The add-on now requests Home Assistant API access.
+- **Adaptive polling**: every `poll_interval_seconds` (60) while quiet,
+  every `poll_fast_interval_seconds` (15) while a threat is active (a
+  report in the last 20 min, a held missile threat, bombers in the air);
+  the page follows the server's pace.
+
+### Map and feed
+- Arrows on the map's edge to tracks outside the view - also both ends of
+  a trajectory (launch hollow, target ringed); close ones merge; tap to jump
+  there; 🧭 turns them on/off.
+- ⌂ back to your default view, 📌 make the current view the default.
+- 🗺️ feed filter: only posts behind a mark that's on the map now.
+- Light theme for the whole UI (header, feed) on the same ☀/🌙 button.
+- The history slider is hidden.
+
+### Parsing and places
+- 28 places and slang aliases from python-aerial-danger's location presets
+  (Берестейська, Дорогожичі, КПІ, Нижні сади, Княжичі, Караваєві дачі /
+  Кардачі, Шуля, Борік, Васік, академ, Лівобережжя…; OpenStreetMap
+  coordinates).
+- City-news outage posts ("в Києві ввели екстрені") are no longer sightings.
+
 ## 1.0.0 — 2026-10-11
 
 First stable release: live map + feed of Ukrainian air-threat Telegram

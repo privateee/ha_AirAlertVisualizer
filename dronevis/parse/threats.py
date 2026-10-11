@@ -93,6 +93,7 @@ RULES: list[ThreatRule] = [
     )),
     ThreatRule("iskander", 98, _rx(
         r"\bискандер", r"\biskander", r"\bкн[\s-]?23\b", r"\bkn[\s-]?23\b",
+        r"\bотрк\b",                 # operational-tactical missile complex = Iskander-M
         r"\b9м72", r"\bкндр\b",
     ), anti=_rx(r"искандер[\s-]*к\b")),
     ThreatRule("ballistic", 95, _rx(

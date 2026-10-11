@@ -6,6 +6,20 @@ export DRONEVIS_DB_PATH="/data/dronevis.db"       # persistent add-on store
 
 export DRONEVIS_CHANNELS="$(bashio::config 'channels' | paste -sd, -)"
 export DRONEVIS_POLL_INTERVAL="$(bashio::config 'poll_interval_seconds')"
+if bashio::config.has_value 'poll_fast_interval_seconds'; then
+  export DRONEVIS_POLL_FAST_INTERVAL="$(bashio::config 'poll_fast_interval_seconds')"
+fi
+
+# your home (Settings -> General) as the point danger / ETA are measured from;
+# on unless use_ha_home is switched off. A failure only falls back to the area.
+if ! bashio::config.false 'use_ha_home'; then
+  if HA_CONF="$(curl -fsS -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/core/api/config)"; then
+    export DRONEVIS_HOME="$(echo "${HA_CONF}" | jq -r '"\(.latitude),\(.longitude)"')"
+    bashio::log.info "home from Home Assistant: ${DRONEVIS_HOME}"
+  else
+    bashio::log.warning "could not read the home position from Home Assistant - using the area centre"
+  fi
+fi
 export DRONEVIS_BACKFILL_PAGES="$(bashio::config 'backfill_pages')"
 export DRONEVIS_AREA_LABEL="$(bashio::config 'area_label')"
 export DRONEVIS_AREA_CENTER="$(bashio::config 'area_center_lat'),$(bashio::config 'area_center_lon')"

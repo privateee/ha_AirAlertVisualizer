@@ -22,9 +22,12 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .areas import area_center, cluster_touches_area, in_area, resolve_area
+from .aviation import active_alerts
 from .config import Config, load_config
 from .db import Database
-from .geo.util import compass
+from .geo.launch import (BALLISTIC_AVG_KMH, HYPERSONIC_AVG_KMH, THREAT_HOLD_MIN,
+                          candidates, reaches, site_at)
+from .geo.util import compass, haversine_km
 from .ha import HAPublisher, compute_state
 from .log import get_logger, setup_logging
 from .parse.threats import ALL_SLUGS, COLOR, FAMILY, LABEL, SHORT, SPEED_KMH
@@ -80,9 +83,29 @@ def create_app(cfg: Config | None = None):
         except Exception as exc:                       # noqa: BLE001
             log.warning("HA publish failed: %s", exc)
 
+    # Poll every interval_seconds while it's quiet, every fast_interval_seconds
+    # while something is going on (service.threat_active): a minute's delay
+    # costs nothing at noon and a lot during an attack.
+    poll = {"seconds": cfg.poll.interval_seconds, "scheduler": None}
+
+    def _poll_seconds() -> int:
+        try:
+            fast = service.threat_active()
+        except Exception as exc:                       # noqa: BLE001
+            log.warning("threat check failed: %s", exc)
+            fast = False
+        return (min(cfg.poll.fast_interval_seconds, cfg.poll.interval_seconds)
+                if fast else cfg.poll.interval_seconds)
+
     async def _poll_and_publish() -> None:
         await service.ingest_once()
         await asyncio.to_thread(_publish_ha)
+        seconds = await asyncio.to_thread(_poll_seconds)
+        if seconds != poll["seconds"] and poll["scheduler"] is not None:
+            poll["seconds"] = seconds
+            poll["scheduler"].reschedule_job("poll", trigger="interval", seconds=seconds)
+            log.info("polling every %ds (%s)", seconds,
+                     "threat active" if seconds < cfg.poll.interval_seconds else "quiet")
 
     async def _prune() -> None:
         await asyncio.to_thread(service.prune)
@@ -118,6 +141,7 @@ def create_app(cfg: Config | None = None):
             next_run_time=datetime.now(timezone.utc),
             max_instances=1, coalesce=True, id="poll",
         )
+        poll["scheduler"] = scheduler
         if publisher.enabled:
             scheduler.add_job(_publish_ha, "interval",
                               seconds=cfg.mqtt.publish_interval, id="ha")
@@ -183,6 +207,7 @@ def create_app(cfg: Config | None = None):
             "tile_attribution_dark": cfg.server.tile_attribution_dark,
             "map_theme": cfg.server.map_theme,
             "poll_interval": cfg.poll.interval_seconds,
+            "home": list(cfg.home) if cfg.home else None,
             "version": __version__,
         }
 
@@ -261,6 +286,22 @@ def create_app(cfg: Config | None = None):
                + ("" if include_resolved else "AND resolved_at IS NULL ")
                + "ORDER BY last_posted_at DESC")
         rows = db.query(sql, (t0.isoformat(), t1.isoformat()))
+        # A live missile threat stays on the map past a short window ("5 min")
+        # until it's resolved / has hit, or its hold time runs out - a
+        # "Загроза ОТРК, Курськ" must not vanish 5 minutes in.
+        if not until:
+            seen = {r["id"] for r in rows}
+            hold_from = (t1 - timedelta(minutes=max(THREAT_HOLD_MIN.values()))).isoformat()
+            for r in db.query(
+                "SELECT * FROM cluster WHERE last_posted_at >= ? AND last_posted_at < ? "
+                "AND resolved_at IS NULL AND status <> 'impact' ORDER BY last_posted_at DESC",
+                (hold_from, t0.isoformat()),
+            ):
+                hold = THREAT_HOLD_MIN.get(FAMILY.get(r["threat_type"]))
+                if hold is None or r["id"] in seen:
+                    continue
+                if dtp.isoparse(r["last_posted_at"]) >= t1 - timedelta(minutes=hold):
+                    rows.append(r)
 
         # cheap filters first, so we only pull events for clusters we will show
         kept = []
@@ -269,7 +310,8 @@ def create_app(cfg: Config | None = None):
                 continue
             if located_only and c["centroid_lat"] is None:
                 continue
-            if area_obj and not cluster_touches_area(area_obj, c):
+            if area_obj and not (cluster_touches_area(area_obj, c)
+                                 or _launch_aims_at(c, area_center(area_obj))):
                 continue
             if want_channels and not (want_channels & set(_json(c["channels"]))):
                 continue
@@ -293,6 +335,8 @@ def create_app(cfg: Config | None = None):
         coarse_places = {pl.name for pl in service.gaz.places
                          if pl.kind == "city" and pl.rank >= 5}
         ref_pt, ref_kind = _latlon(ref), "here"
+        if ref_pt is None and cfg.home is not None:
+            ref_pt, ref_kind = cfg.home, "home"      # from Home Assistant
         if ref_pt is None and area_obj is not None:
             ref_pt, ref_kind = area_center(area_obj), "area"
         now = datetime.now(timezone.utc)
@@ -305,11 +349,24 @@ def create_app(cfg: Config | None = None):
                                     ref=ref_pt, now=now,
                                     max_age_min=cfg.alarm.active_minutes,
                                     coarse_places=coarse_places))
+            out[-1]["missile"] = _missile_info(c, evs, ref_pt, now)
         return {
             "count": len(out), "clusters": out,
+            "poll_s": poll["seconds"],              # the server's current pace
             "ref": ({"lat": ref_pt[0], "lon": ref_pt[1], "kind": ref_kind}
                     if ref_pt else None),
         }
+
+    @app.get("/api/aviation")
+    def api_aviation():
+        """Missile-carrier aircraft in the air, as timers since takeoff
+        (relocations excluded) - see aviation.py."""
+        now = datetime.now(timezone.utc)
+        rows = db.query(
+            "SELECT channel, url, posted_at, text FROM raw_message WHERE posted_at >= ? "
+            "ORDER BY posted_at", ((now - timedelta(hours=12)).isoformat(),))
+        posts = [(dtp.isoparse(r["posted_at"]), r["channel"], r["url"], r["text"]) for r in rows]
+        return {"alerts": active_alerts(posts, now)}
 
     @app.get("/api/messages")
     def api_messages(
@@ -343,7 +400,7 @@ def create_app(cfg: Config | None = None):
             ph = ",".join("?" * len(ids))
             for e in db.query(
                 f"SELECT raw_message_id, threat_type, status, place_name, dest_name, "
-                f"heading_deg, count, lat, lon, altitude_m FROM event WHERE raw_message_id IN ({ph}) "
+                f"heading_deg, count, lat, lon, altitude_m, cluster_id FROM event WHERE raw_message_id IN ({ph}) "
                 f"ORDER BY id",
                 ids,
             ):
@@ -359,6 +416,7 @@ def create_app(cfg: Config | None = None):
                         "place_name": e["place_name"], "dest_name": e["dest_name"],
                         "heading": compass(e["heading_deg"]), "count": e["count"],
                         "lat": e["lat"], "lon": e["lon"], "altitude_m": e["altitude_m"],
+                        "cluster_id": e["cluster_id"],
                         "color": COLOR.get(e["threat_type"], "#888"),
                     }
                     for e in ev_by_msg.get(r["id"], [])
@@ -425,6 +483,84 @@ def _json(text: str):
         return json.loads(text)
     except Exception:
         return []
+
+
+def _launch_aims_at(c, target: tuple[float, float]) -> bool:
+    """A missile threat sitting at a launch area ("Загроза балістики з
+    Курська") counts for an area that area is typically used against - it
+    used to be filtered out as "in Russia", so Kyiv saw nothing."""
+    if FAMILY.get(c["threat_type"]) not in ("ballistic", "cruise"):
+        return False
+    site = site_at(c["centroid_lat"], c["centroid_lon"])
+    return site is not None and reaches(site, target)
+
+
+# a launch-area threat nobody follows up within this long is likely a false alarm
+QUIET_THREAT_MIN = 10.0
+
+
+
+def _missile_info(c, evs, ref: tuple[float, float] | None,
+                  now: datetime | None = None) -> dict | None:
+    """Launch area -> target for a ballistic / cruise missile track, for the
+    map's trajectory line. ``evs`` newest first.
+
+    * launch: the launch area of its first fix, if it started at one
+    * target: the stated destination; else where it's descending; else its
+      latest named place past the launch area; else the viewer's point / the
+      area, when that's a region this launch area is typically used on
+    * final: after "спуск" / impact the trajectory doesn't change any more
+    * candidates: no launch area known ("Київ — спуск балістики") - the usual
+      areas a ballistic missile on that target comes from
+    * maybe_false: "Загроза ОТРК, Курськ" and then nothing - no target, no
+      descent, no new report - for QUIET_THREAT_MIN: likely a false alarm
+    """
+    fam = FAMILY.get(c["threat_type"])
+    if fam not in ("ballistic", "cruise"):
+        return None
+    fixes = [(e["lat"], e["lon"]) for e in reversed(evs) if e["lat"] is not None]
+    if not fixes and c["centroid_lat"] is None:
+        return None
+    first = fixes[0] if fixes else (c["centroid_lat"], c["centroid_lon"])
+    here = (c["centroid_lat"], c["centroid_lon"])
+    site = site_at(*first)
+    final = c["status"] in ("descending", "impact")
+
+    to, to_name, to_kind = None, None, None
+    if c["dest_lat"] is not None:
+        to, to_name, to_kind = (c["dest_lat"], c["dest_lon"]), c["dest_name"], "dest"
+    elif here[0] is not None and (final or site is None or site_at(*here) != site):
+        to, to_name, to_kind = here, c["place_name"], "place"
+    elif site is not None and ref is not None and reaches(site, ref):
+        to, to_name, to_kind = ref, None, "area"
+
+    zircon = any("циркон" in (e["raw_line"] or "").lower() for e in evs)
+    speed = (HYPERSONIC_AVG_KMH if zircon else BALLISTIC_AVG_KMH if fam == "ballistic"
+             else SPEED_KMH.get(c["threat_type"], 750.0))
+    info = {"final": final, "to": None, "to_name": to_name, "to_kind": to_kind,
+            "launch": None, "km": None, "min": None, "candidates": [],
+            "maybe_false": False}
+    if site is not None and not final and to_kind == "area":
+        try:
+            quiet = ((now or datetime.now(timezone.utc))
+                     - dtp.isoparse(c["last_posted_at"])).total_seconds() / 60.0
+            info["maybe_false"] = quiet >= QUIET_THREAT_MIN
+        except (TypeError, ValueError):
+            pass
+    if to is not None:
+        info["to"] = [round(to[0], 4), round(to[1], 4)]
+    if site is not None:
+        info["launch"] = {"name": site.name, "lat": site.lat, "lon": site.lon}
+        if to is not None:
+            km = haversine_km((site.lat, site.lon), to)
+            info["km"] = round(km)
+            info["min"] = round(km / speed * 60.0, 1)
+    elif to is not None and fam == "ballistic":
+        info["candidates"] = [{"name": s.name, "lat": s.lat, "lon": s.lon,
+                               "km": round(haversine_km((s.lat, s.lon), to)),
+                               "min": round(haversine_km((s.lat, s.lon), to) / speed * 60.0, 1)}
+                              for s in candidates(to)]
+    return info
 
 
 def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
