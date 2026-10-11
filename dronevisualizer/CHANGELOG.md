@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.3
+
+Fix: no more impossible jumps (Очаків -> Буча, Одеса -> Донецька обл.) when
+a channel replies to a post that listed several drones - the reply now
+continues the nearest drone that could have got there. Fix: the Переяслав ->
+Вишгород line - monitor_ukr's per-line "з <області>" is now read per line.
+Map: track paths are smooth curves that fade from old to new, so you can
+see how a drone moved.
+
 ## 1.1.2
 
 Fix: tracks no longer draw long lines joining different drones (e.g.

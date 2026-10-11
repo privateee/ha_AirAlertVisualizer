@@ -2,6 +2,25 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.3 — 2026-10-11
+
+- **Fix: impossible jumps from replies.** A reply to a post listing several
+  drones (AerisRimor "Реактив на Бородянку / … / Очаків" ↩ "Блиставиця на
+  Бучу") followed the first quoted track with no distance check - Очаків ->
+  Буча, 448 km in 2 min; Одеса -> Донецька обл., 520 km in 1 min. A reply
+  now continues the *nearest* quoted drone that could have got there, and
+  its places resolve near that thread (Odesa's "Приморський район", not
+  Donetsk's).
+- **Fix: the Переяслав -> Вишгород line (again).** monitor_ukr writes one
+  drone per line ("1 реактивний БпЛА з Чернігівщини на Київщину,
+  Вишгородський район"); regions were taken per post, so a line lost its
+  own origin (no direction to check) or took another line's. Each line now
+  has its own origin and direction; only a header region ("Полтавщина:")
+  applies to all lines. The same-place rule respects the direction check.
+- **Map: smooth fading paths.** A track's path is a smooth curve through
+  its reports (it passes through every fix) fading from the oldest leg to
+  the newest, so you see how it moved instead of straight zigzags.
+
 ## 1.1.2 — 2026-10-11
 
 - **Fix: lines across the map joining different drones.** kpszsu's
