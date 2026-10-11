@@ -1213,7 +1213,7 @@ function drawMissile(c, op) {
   L.marker(to, {
     interactive: false,
     icon: L.divIcon({ className: "missile-label", iconSize: null,
-      html: `<span style="position:relative;top:${slot * 22}px;border-left:3px solid ${c.color};padding-left:4px">${esc(label)}</span>` }),
+      html: `<span style="position:relative;top:${slot * 24}px;border-left:3px solid ${c.color}">${esc(label)}</span>` }),
   }).addTo(layer);
 }
 
@@ -1310,10 +1310,35 @@ function drawEdgeMarks() {
     if (!shownIds.has(c.id) || c.lat == null) continue;
     points.push({ c, lat: c.lat, lon: c.lon, kind: "pos" });
     const m = c.missile;
-    if (m && m.launch) points.push({ c, lat: m.launch.lat, lon: m.launch.lon, kind: "start" });
-    if (m && m.to && m.to_kind !== "area" && (m.to[0] !== c.lat || m.to[1] !== c.lon)) {
-      points.push({ c, lat: m.to[0], lon: m.to[1], kind: "end" });
+    // the drawn trajectory (launch -> target arc), so its ends' marks sit
+    // where that line leaves the screen
+    const arc = m && m.launch && m.to && m.to_kind !== "area"
+      ? arcPoints([m.launch.lat, m.launch.lon], m.to) : null;
+    if (m && m.launch) {
+      points.push({ c, lat: m.launch.lat, lon: m.launch.lon, kind: "start",
+        line: arc && arc.slice().reverse() });
     }
+    if (m && m.to && m.to_kind !== "area" && (m.to[0] !== c.lat || m.to[1] !== c.lon)) {
+      points.push({ c, lat: m.to[0], lon: m.to[1], kind: "end", line: arc });
+    }
+  }
+  const inside = (q) => q.x >= pad && q.x <= W - pad && q.y >= pad && q.y <= H - pad;
+  // where a line (ordered toward the off-screen point) leaves the padded view
+  function exitOf(line) {
+    const px = line.map((ll) => map.latLngToContainerPoint(ll));
+    for (let i = 1; i < px.length; i += 1) {
+      const a = px[i - 1], b = px[i];
+      if (!inside(a) || inside(b)) continue;
+      // clip a -> b to the rectangle: the largest t that keeps it inside
+      let tt = 1;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      if (dx > 0) tt = Math.min(tt, (W - pad - a.x) / dx);
+      if (dx < 0) tt = Math.min(tt, (pad - a.x) / dx);
+      if (dy > 0) tt = Math.min(tt, (H - pad - a.y) / dy);
+      if (dy < 0) tt = Math.min(tt, (pad - a.y) / dy);
+      return { x: a.x + dx * tt, y: a.y + dy * tt, ang: Math.atan2(dy, dx) * 180 / Math.PI + 90 };
+    }
+    return null;                                   // no visible part: use the ray
   }
   for (const pt of points) {
     const c = pt.c;
@@ -1321,10 +1346,12 @@ function drawEdgeMarks() {
     if (p.x >= 0 && p.x <= W && p.y >= 0 && p.y <= H) continue;
     const dx = p.x - cx, dy = p.y - cy;
     const s = Math.min((cx - pad) / Math.abs(dx || 1e-9), (cy - pad) / Math.abs(dy || 1e-9));
-    const x = cx + dx * s, y = cy + dy * s;
+    let x = cx + dx * s, y = cy + dy * s, ang = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+    const ex = pt.line && exitOf(pt.line);
+    if (ex) ({ x, y, ang } = ex);
     const near = marks.find((m) => m.kind === pt.kind && Math.hypot(m.x - x, m.y - y) < 26);
     if (near) { near.items.push(c); near.pts.push(pt); continue; }
-    marks.push({ x, y, kind: pt.kind, ang: Math.atan2(dy, dx) * 180 / Math.PI + 90, items: [c], pts: [pt] });
+    marks.push({ x, y, kind: pt.kind, ang, items: [c], pts: [pt] });
   }
   const frag = document.createDocumentFragment();
   for (const m of marks.slice(0, 40)) {

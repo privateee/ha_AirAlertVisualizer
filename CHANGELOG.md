@@ -2,6 +2,16 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.7 — 2026-10-11
+
+- **Map: edge marks sit on their trajectory.** The mark for an off-screen
+  launch area / target is placed where its drawn line leaves the screen,
+  arrow along the line - before it sat on the ray from the view's centre, so
+  marks and lines didn't line up.
+- **Map: readable distance / time labels.** Several missiles on one target
+  stack their "≈413 км · ~4 хв" labels; the dark box was on the container, so
+  the second one slid out onto the bare map. Each label has its own box now.
+
 ## 1.1.6 — 2026-10-11
 
 - **Map: a launch-area threat with no target named** ("Загроза ОТРК,

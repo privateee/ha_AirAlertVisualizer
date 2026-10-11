@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.7
+
+Map: off-screen markers for a missile's launch area / target now sit where
+its line leaves the screen; stacked distance / time labels each have their
+own box, readable on the light map too.
+
 ## 1.1.6
 
 Map: a ballistic / cruise threat from a launch area with no target named no

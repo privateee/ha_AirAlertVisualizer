@@ -359,10 +359,13 @@ body:not(.is-desktop) .pp-feedhint {
   border-bottom: 7px solid rgba(255, 255, 255, .95); top: -9px; left: 5px; transform-origin: 5px 21px; }
 
 /* missile trajectory: distance / flight time next to the target, launch areas */
-.missile-label {
-  margin: -11px 0 0 18px; white-space: nowrap; pointer-events: none;
+/* the box is on each label, not the container: stacked labels (several
+   missiles on one target) shift down out of the container's box */
+.missile-label { margin: -11px 0 0 18px; white-space: nowrap; pointer-events: none; }
+.missile-label > span {
+  display: inline-block;
   font: 600 12px/1.2 -apple-system, "Segoe UI", sans-serif; color: #fff;
-  background: rgba(16, 20, 27, .82); border: 1px solid rgba(255, 255, 255, .25);
+  background: rgba(16, 20, 27, .9); border: 1px solid rgba(255, 255, 255, .25);
   border-radius: 6px; padding: 2px 6px;
 }
 .launch-site {
