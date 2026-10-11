@@ -70,7 +70,7 @@ const I18N = {
     cantReach: "Can't reach the DroneVisualizer server on this address.",
     startWith: "Start it with:  python -m dronevis run   — then this page reconnects automatically.",
     retry: "retry", altitude: "alt", search: "Search the feed", hidden: "hidden",
-    maybeFalse: "possible false alarm", resetView: "Back to the default view",
+    maybeFalse: "possible false alarm", noTarget: "threat, target unknown", resetView: "Back to the default view",
     minU: "min", aviaSince: "in the air since", aviaWindow: "launches usually after",
     homePin: "Home (from Home Assistant)", homeRef: "home",
     pinToggle: "Show the home / location pin (on/off)",
@@ -101,7 +101,7 @@ const I18N = {
     cantReach: "Не вдається під'єднатися до сервера DroneVisualizer.",
     startWith: "Запустіть:  python -m dronevis run   — сторінка під'єднається сама.",
     retry: "спроба", altitude: "висота", search: "Пошук у стрічці", hidden: "сховано",
-    maybeFalse: "можлива хибна тривога", resetView: "Повернутися до типового вигляду",
+    maybeFalse: "можлива хибна тривога", noTarget: "загроза, ціль невідома", resetView: "Повернутися до типового вигляду",
     minU: "хв", aviaSince: "у повітрі з", aviaWindow: "пуски зазвичай через",
     homePin: "Дім (з Home Assistant)", homeRef: "дому",
     pinToggle: "Показувати мітку дому / місця (увімк./вимк.)",
@@ -1159,13 +1159,28 @@ function drawMissile(c, op) {
   const to = m.to;
   const launches = m.launch ? [m.launch] : (m.candidates || []);
   if (!launches.length) return;
+  const dim = m.maybe_false ? 0.45 : 1;              // quiet threat: likely false
+  // "Загроза ОТРК, Брянськ" and no target named yet: a threat to the whole
+  // region, not to any one point - the launch area and how soon it could
+  // arrive, no line until a channel says where it's going
+  if (m.to_kind === "area" && m.launch) {
+    let label = `${t("noTarget")}${m.min != null ? ` · ~${Math.round(m.min)} ${t("minU")}` : ""}`;
+    if (m.maybe_false) label = `${t("maybeFalse")} · ${label}`;
+    L.marker([m.launch.lat, m.launch.lon], {
+      interactive: false, opacity: dim,
+      icon: L.divIcon({ className: "launch-site sure",
+        html: `<span style="color:${c.color}">▲</span>${esc(m.launch.name)}`
+          + `<br><span class="missile-label-inline" style="border-left:3px solid ${c.color}">${esc(label)}</span>`,
+        iconSize: null }),
+    }).addTo(layer);
+    return;
+  }
   // several "спуск" on one target: its candidate arcs once, not stacked
   if (!m.launch) {
     const key = to.join(",");
     if (candidateTargets.has(key)) return;
     candidateTargets.add(key);
   }
-  const dim = m.maybe_false ? 0.45 : 1;              // quiet threat: likely false
   for (const s of launches) {
     const sure = !!m.launch;
     L.polyline(arcPoints([s.lat, s.lon], to), {
@@ -1296,7 +1311,7 @@ function drawEdgeMarks() {
     points.push({ c, lat: c.lat, lon: c.lon, kind: "pos" });
     const m = c.missile;
     if (m && m.launch) points.push({ c, lat: m.launch.lat, lon: m.launch.lon, kind: "start" });
-    if (m && m.to && (m.to[0] !== c.lat || m.to[1] !== c.lon)) {
+    if (m && m.to && m.to_kind !== "area" && (m.to[0] !== c.lat || m.to[1] !== c.lon)) {
       points.push({ c, lat: m.to[0], lon: m.to[1], kind: "end" });
     }
   }

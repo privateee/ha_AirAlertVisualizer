@@ -372,6 +372,12 @@ body:not(.is-desktop) .pp-feedhint {
 }
 .launch-site.sure { color: #fff; font-weight: 600; }
 .launch-site span { margin-right: 3px; }
+/* "threat, target unknown" under the launch area */
+.launch-site .missile-label-inline {
+  display: inline-block; margin: 3px 0 0 0; padding: 2px 6px; text-shadow: none;
+  font-weight: 600; font-size: 12px; color: #fff; background: rgba(16, 20, 27, .82);
+  border-radius: 6px;
+}
 .leaflet-tooltip.count-badge {
   background: transparent; border: none; box-shadow: none;
   padding: 0; margin: 0;

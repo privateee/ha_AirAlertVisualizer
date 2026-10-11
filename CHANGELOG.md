@@ -2,6 +2,15 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.6 — 2026-10-11
+
+- **Map: a launch-area threat with no target named** ("Загроза ОТРК,
+  Брянськ") no longer draws a trajectory onto your home - it's a threat to
+  the whole region until a channel says where it's going. The map shows the
+  launch area with "загроза, ціль невідома · ~4 хв"; the line appears once a
+  target is reported. Its flight time is counted to the big city near you
+  (within 60 km), not to your house.
+
 ## 1.1.5 — 2026-10-11
 
 - **New blueprint: DroneVisualizer critical notification**

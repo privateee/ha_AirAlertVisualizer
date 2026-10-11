@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.6
+
+Map: a ballistic / cruise threat from a launch area with no target named no
+longer draws a line onto your home - the launch area shows "загроза, ціль
+невідома · ~N хв" until a channel names the target.
+
 ## 1.1.5
 
 New blueprint "DroneVisualizer critical notification": a push per track (and

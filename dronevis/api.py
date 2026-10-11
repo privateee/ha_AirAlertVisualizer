@@ -339,6 +339,18 @@ def create_app(cfg: Config | None = None):
             ref_pt, ref_kind = cfg.home, "home"      # from Home Assistant
         if ref_pt is None and area_obj is not None:
             ref_pt, ref_kind = area_center(area_obj), "area"
+        # "Загроза ОТРК, Брянськ" with no target named: the line is drawn to
+        # the big city nearest you (Kyiv, not your house - a line onto your
+        # home claims more than anyone knows), else the area / your point
+        aim_pt = ref_pt
+        if ref_pt is not None:
+            cities = [(haversine_km(ref_pt, (pl.lat, pl.lon)), (pl.lat, pl.lon))
+                      for pl in service.gaz.places if pl.kind == "city" and pl.rank >= 5]
+            near = min(cities, default=None)
+            if near and near[0] <= AIM_CITY_KM:
+                aim_pt = near[1]
+            elif area_obj is not None:
+                aim_pt = area_center(area_obj)
         now = datetime.now(timezone.utc)
         out = []
         for c in kept:
@@ -349,7 +361,7 @@ def create_app(cfg: Config | None = None):
                                     ref=ref_pt, now=now,
                                     max_age_min=cfg.alarm.active_minutes,
                                     coarse_places=coarse_places))
-            out[-1]["missile"] = _missile_info(c, evs, ref_pt, now)
+            out[-1]["missile"] = _missile_info(c, evs, aim_pt, now)
         return {
             "count": len(out), "clusters": out,
             "poll_s": poll["seconds"],              # the server's current pace
@@ -497,7 +509,8 @@ def _launch_aims_at(c, target: tuple[float, float]) -> bool:
 
 # a launch-area threat nobody follows up within this long is likely a false alarm
 QUIET_THREAT_MIN = 10.0
-
+# a target-less launch-area threat is drawn to the big city this near you
+AIM_CITY_KM = 60.0
 
 
 def _missile_info(c, evs, ref: tuple[float, float] | None,
@@ -507,8 +520,8 @@ def _missile_info(c, evs, ref: tuple[float, float] | None,
 
     * launch: the launch area of its first fix, if it started at one
     * target: the stated destination; else where it's descending; else its
-      latest named place past the launch area; else the viewer's point / the
-      area, when that's a region this launch area is typically used on
+      latest named place past the launch area; else ``ref`` (the big city
+      near the viewer, or the area), when that's a region this launch area is typically used on
     * final: after "спуск" / impact the trajectory doesn't change any more
     * candidates: no launch area known ("Київ — спуск балістики") - the usual
       areas a ballistic missile on that target comes from
