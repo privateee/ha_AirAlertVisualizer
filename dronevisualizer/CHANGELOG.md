@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.4
+
+Map: tap a track leg to see the two posts behind it (distance, time, speed).
+New 🏠 button hides the home pin, e.g. for screenshots. Feed: with the 🗺️
+filter on and nothing on the map, it now says how many posts are hidden
+instead of looking empty.
+
 ## 1.1.3
 
 Fix: no more impossible jumps (Очаків -> Буча, Одеса -> Донецька обл.) when

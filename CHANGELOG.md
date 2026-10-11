@@ -2,6 +2,16 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.4 — 2026-10-11
+
+- **Map: tap a track leg** to see which posts drew it: from -> to, distance,
+  minutes and implied speed, with both posts (channel, time linking to the
+  post, text). Markers still win where they overlap a leg.
+- **Map: 🏠 toggle** in the view control hides the home / location pin (for
+  sharing screenshots); danger and ETA still use it.
+- **Feed:** with 🗺️ on and nothing on the map, the feed says how many posts
+  the filter hides (tap to show all) instead of looking wiped.
+
 ## 1.1.3 — 2026-10-11
 
 - **Fix: impossible jumps from replies.** A reply to a post listing several
