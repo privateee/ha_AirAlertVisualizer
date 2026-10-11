@@ -1,0 +1,160 @@
+blueprint:
+  name: DroneVisualizer critical notification
+  description: >-
+    Push to your phone for each threat DroneVisualizer reports - a new track,
+    or a known one that just got more dangerous to your home (closer level, or
+    now heading for you). The title is a one-line summary ("Jet UAV ×2 ·
+    Бровари → Київ · 12 km NE · ~6 min"), the body is the channel's post, and
+    tapping it opens the post. Each track has its own notification tag, so an
+    update replaces that track's previous alert instead of stacking. Critical
+    alerts on iOS need the Critical Notifications permission for the HA app.
+  domain: automation
+  author: DroneVisualizer
+  source_url: https://github.com/privateee/ha_AirAlertVisualizer/blob/main/blueprints/automation/dronevis_critical_notification.yaml
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    event_entity:
+      name: DroneVisualizer "Threat detected" event
+      description: The event entity of the DroneVisualizer device (MQTT).
+      selector:
+        entity:
+          filter:
+            - domain: event
+              integration: mqtt
+    mobile_device:
+      name: Phone
+      selector:
+        device:
+          filter:
+            - integration: mobile_app
+    families:
+      name: Threat types
+      default: [ballistic, cruise, drone, bomb, aircraft]
+      selector:
+        select:
+          multiple: true
+          options:
+            - { value: ballistic, label: "Ballistic (Iskander, Kinzhal)" }
+            - { value: cruise, label: "Cruise missiles" }
+            - { value: drone, label: "Drones (Shahed, jet UAV, recon)" }
+            - { value: bomb, label: "Guided bombs (KAB)" }
+            - { value: aircraft, label: "Aircraft" }
+            - { value: unknown, label: "Unidentified" }
+    min_level:
+      name: Only when the danger to home is at least
+      description: >-
+        low = every report; medium = on course to arrive within ~45 min;
+        high = within 10 km, or arriving within ~15 min.
+      default: low
+      selector:
+        select:
+          options:
+            - { value: low, label: "Any (every report)" }
+            - { value: medium, label: "Medium" }
+            - { value: high, label: "High" }
+    max_km:
+      name: Only within (km of home)
+      description: 0 = no distance limit.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 1000
+          step: 5
+          unit_of_measurement: km
+          mode: box
+    escalations:
+      name: Also when a known track gets more dangerous
+      description: >-
+        A track first seen far away is announced again when it gets closer
+        (danger level rises) or turns toward your home.
+      default: true
+      selector:
+        boolean:
+    critical:
+      name: Critical (breaks through silent mode / Do Not Disturb)
+      default: true
+      selector:
+        boolean:
+    cooldown:
+      name: Quiet time after a notification
+      description: Reports during this time are skipped, not delayed (0 = none).
+      default:
+        seconds: 0
+      selector:
+        duration: {}
+
+mode: queued
+max: 10
+max_exceeded: silent
+
+variables:
+  families: !input families
+  min_level: !input min_level
+  max_km: !input max_km
+  escalations: !input escalations
+  critical: !input critical
+  cooldown: !input cooldown
+  cooldown_s: >-
+    {{ (cooldown.hours | default(0)) * 3600 + (cooldown.minutes | default(0)) * 60
+       + (cooldown.seconds | default(0)) }}
+  family_of:
+    shahed: drone
+    jet_uav: drone
+    recon_uav: drone
+    banderol: cruise
+    kalibr: cruise
+    x101: cruise
+    x22: cruise
+    cruise_missile: cruise
+    kinzhal: ballistic
+    iskander: ballistic
+    ballistic: ballistic
+    kab: bomb
+    aircraft: aircraft
+    unknown: unknown
+  rank:
+    none: 0
+    low: 1
+    medium: 2
+    high: 3
+  a: "{{ trigger.to_state.attributes }}"
+
+triggers:
+  - trigger: state
+    entity_id: !input event_entity
+    not_to: [unavailable, unknown]
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.from_state is not none
+         and trigger.from_state.state not in ['unavailable', 'unknown']
+         and family_of.get(a.event_type, 'unknown') in families
+         and rank.get(a.level or 'low', 1) >= rank[min_level]
+         and (max_km | float(0) == 0 or (a.nearest_km | float(9999)) <= max_km | float(0))
+         and (escalations or (a.reason | default('new')) == 'new') }}
+  - condition: template
+    value_template: >-
+      {{ cooldown_s | float(0) == 0 or this.attributes.last_triggered is none
+         or (now() - this.attributes.last_triggered).total_seconds() >= cooldown_s | float(0) }}
+
+actions:
+  - device_id: !input mobile_device
+    domain: mobile_app
+    type: notify
+    title: >-
+      {{ {'escalated': '⚠️ ', 'toward': '➡️ '}.get(a.reason, '') }}{{ a.summary or a.label }}
+    message: >-
+      {{ (a.message or a.line or a.place_name or '') | truncate(400) }}
+    data:
+      tag: "dronevis_{{ a.cluster_id }}"
+      group: dronevis
+      url: "{{ a.url or '' }}"
+      clickAction: "{{ a.url or '' }}"
+      push:
+        interruption-level: "{{ 'critical' if critical else 'time-sensitive' }}"
+      ttl: 0
+      priority: high
+      channel: "{{ 'alarm_stream' if critical else 'DroneVisualizer' }}"

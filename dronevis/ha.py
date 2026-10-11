@@ -22,6 +22,11 @@ Entities (device "DroneVisualizer"):
                                       carry place/count/destination/etc. Lets an
                                       automation react to *each* new report
                                       instead of only the first on->off edge.
+                                      Fires again for a known track when it
+                                      gets more dangerous (`reason`: new /
+                                      escalated / toward), with the newest
+                                      post's text and link and a ready
+                                      `summary` line for notifications.
 
 Broker: `mqtt.host` in config, or - inside the HA add-on - auto-discovered
 from the Supervisor (`http://supervisor/services/mqtt`).
@@ -39,8 +44,10 @@ from dateutil import parser as dtparse
 
 from .areas import area_center, cluster_touches_area
 from .config import Config
+from .geo.gazetteer import _OBLAST_LABEL
 from .geo.util import bearing_deg, compass, haversine_km
 from .log import get_logger
+from .parse.pipeline import strip_boilerplate
 from .parse.threats import ALL_SLUGS, FAMILY, LABEL
 from .predict import assess, cluster_motion
 
@@ -103,6 +110,16 @@ def compute_state(db, cfg: Config) -> dict:
             cid = r["cluster_id"]
             conf[cid] = max(conf.get(cid, 0.0), r["parse_confidence"] or 0.0)
             fixes.setdefault(cid, []).append(r)
+    # each track's newest post, for the notification text and link
+    latest: dict[int, object] = {}
+    if rows:
+        for r in db.query(
+            f"SELECT e.cluster_id, e.raw_line, r.url, r.text, r.channel FROM event e "
+            f"JOIN raw_message r ON r.id = e.raw_message_id "
+            f"WHERE e.cluster_id IN ({ph}) ORDER BY e.posted_at, e.id",
+            [c["id"] for c in rows],
+        ):
+            latest[r["cluster_id"]] = r
 
     now = datetime.now(timezone.utc)
     danger: dict[int, dict | None] = {
@@ -110,6 +127,8 @@ def compute_state(db, cfg: Config) -> dict:
                         centre, now, cfg.alarm.active_minutes)
         for c in rows
     }
+    for c in rows:
+        cap_region_level(c, danger.get(c["id"]))
 
     def counts(c) -> bool:
         if not cfg.alarm.in_area_only or cluster_touches_area(area, c):
@@ -154,9 +173,12 @@ def compute_state(db, cfg: Config) -> dict:
                 "confidence": round(conf.get(c["id"], 0.0), 2),
                 "updated": c["last_posted_at"],
                 **_danger_fields(danger.get(c["id"])),
+                **_post_fields(latest.get(c["id"])),
             }
             for c in cl
         ]
+        for x in clusters:
+            x["summary"] = _summary(LABEL.get(slug, slug), x)
         threats[slug] = {
             "on": True,
             "label": LABEL.get(slug, slug),
@@ -218,6 +240,9 @@ def compute_state(db, cfg: Config) -> dict:
 
 
 _LEVELS = ("none", "low", "medium", "high")
+_REGIONS = {v for k, v in _OBLAST_LABEL.items() if k != "kyiv_c"}   # not the city
+# a known track "turning toward you" is announced only when it'd arrive soon
+TOWARD_ANNOUNCE_MIN = 60
 
 
 def _danger_fields(d: dict | None) -> dict:
@@ -225,6 +250,40 @@ def _danger_fields(d: dict | None) -> dict:
         return {"level": "low", "toward": False, "eta_min": None, "passes_km": None}
     return {"level": d["level"], "toward": d["toward"], "eta_min": d["eta_min"],
             "passes_km": d["cpa_km"]}
+
+
+MESSAGE_MAX = 500          # notification body; HA / phones cut longer ones
+
+
+def _post_fields(r) -> dict:
+    if r is None:
+        return {"message": "", "line": "", "url": None, "post_channel": None}
+    text = strip_boilerplate(r["text"] or "").strip()
+    if len(text) > MESSAGE_MAX:
+        text = text[:MESSAGE_MAX - 1].rstrip() + "…"
+    return {"message": text, "line": r["raw_line"] or "", "url": r["url"],
+            "post_channel": r["channel"]}
+
+
+def _summary(label: str, c: dict) -> str:
+    """One line for a notification title / TTS:
+    "Jet UAV ×2 · Бровари → Київ · 12 km NE · ~6 min"."""
+    bits = [label + (f" ×{c['count']}" if (c.get("count") or 1) > 1 else ""),
+            (c.get("place_name") or "") + (f" → {c['dest_name']}" if c.get("dest_name") else ""),
+            f"{round(c['nearest_km'])} km {c.get('nearest_bearing') or ''}".strip()
+            if c.get("nearest_km") is not None else "",
+            f"~{round(c['eta_min'])} min" if c.get("toward") and c.get("eta_min") is not None else ""]
+    return " · ".join(b for b in bits if b)
+
+
+def cap_region_level(c, d: dict | None) -> dict | None:
+    """A whole-oblast report ("Київська обл.") is placed at the oblast's
+    centre - that it lands near you says nothing, so on its own it never makes
+    the danger high (drones: never above low)."""
+    if d and c["place_name"] in _REGIONS and d["level"] in ("medium", "high"):
+        cap = "low" if FAMILY.get(c["threat_type"]) in ("drone", "unknown") else "medium"
+        d["level"] = min(d["level"], cap, key=_LEVELS.index)
+    return d
 
 
 def _max_level(levels) -> str:
@@ -248,6 +307,10 @@ class HAPublisher:
         # fires once per genuinely new report rather than once per poll.
         self._seen_cluster_ids: set[int] = set()
         self._seen_primed = False
+        # per track: the highest danger level already announced, and whether
+        # "heading for you" was - so a track re-fires only when it gets worse
+        self._fired_level: dict[int, str] = {}
+        self._fired_toward: set[int] = set()
 
     @property
     def connected(self) -> bool:
@@ -395,14 +458,37 @@ class HAPublisher:
                 current_ids.add(c["id"])
                 by_id[c["id"]] = (slug, c)
 
-        new_ids = current_ids - self._seen_cluster_ids if self._seen_primed else set()
+        primed = self._seen_primed
+        new_ids = current_ids - self._seen_cluster_ids if primed else set()
         self._seen_primed = True
         self._seen_cluster_ids = current_ids
 
-        for cid in new_ids:
+        fire: list[tuple[int, str]] = []
+        for cid in sorted(current_ids):
+            c = by_id[cid][1]
+            lvl, before = c["level"], self._fired_level.get(cid, "low")
+            toward = bool(c["toward"] and c["eta_min"] is not None
+                          and c["eta_min"] <= TOWARD_ANNOUNCE_MIN)
+            if cid in new_ids:
+                fire.append((cid, "new"))
+            elif primed and cid in self._fired_level:
+                # a known track got worse: a higher level, or now heading for you
+                if lvl in ("medium", "high") and _LEVELS.index(lvl) > _LEVELS.index(before):
+                    fire.append((cid, "escalated"))
+                elif toward and cid not in self._fired_toward:
+                    fire.append((cid, "toward"))
+            self._fired_level[cid] = max(lvl, before, key=_LEVELS.index)
+            if toward:
+                self._fired_toward.add(cid)
+        self._fired_level = {k: v for k, v in self._fired_level.items() if k in current_ids}
+        self._fired_toward &= current_ids
+
+        for cid, reason in fire:
             slug, c = by_id[cid]
             payload = {
                 "event_type": slug,
+                "reason": reason,
+                "cluster_id": cid,
                 "label": state["threats"][slug]["label"],
                 "place_name": c["place_name"],
                 "count": c["count"],
@@ -414,7 +500,13 @@ class HAPublisher:
                 "level": c["level"],
                 "toward": c["toward"],
                 "eta_min": c["eta_min"],
+                "passes_km": c["passes_km"],
                 "area": state["area"],
+                "summary": c["summary"],
+                "message": c["message"],
+                "line": c["line"],
+                "url": c["url"],
+                "post_channel": c["post_channel"],
             }
             pub(f"{b}/event/detected", json.dumps(payload), retain=False)
 

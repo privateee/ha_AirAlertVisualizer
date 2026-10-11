@@ -1,33 +1,49 @@
 blueprint:
   name: DroneVisualizer air alarm
   description: >-
-    Notify (and optionally speak) when `binary_sensor.dronevis_alarm` turns on,
-    repeating while it stays on. The alarm covers the threat types set in the
-    add-on's `alarm.threats` option (default: ballistic).
+    Notify your phone (and optionally speak) when `binary_sensor.dronevis_alarm`
+    turns on, repeating while it stays on; the notification is cleared when the
+    alarm ends. The alarm covers the threat types set in the add-on's
+    `alarm_threats` option (default: ballistic). For a notification per track,
+    with the channel's post, use "DroneVisualizer critical notification".
   domain: automation
+  author: DroneVisualizer
   source_url: https://github.com/privateee/ha_AirAlertVisualizer/blob/main/blueprints/automation/dronevis_alert.yaml
+  homeassistant:
+    min_version: "2024.10.0"
   input:
     alarm_entity:
       name: Alarm sensor
       default: binary_sensor.dronevis_alarm
       selector:
         entity:
-          domain: binary_sensor
-    notify_target:
-      name: Notify service
-      description: e.g. notify.mobile_app_pixel
+          filter:
+            - domain: binary_sensor
+    mobile_device:
+      name: Phone
       selector:
-        text:
+        device:
+          filter:
+            - integration: mobile_app
     critical:
-      name: Critical push (iOS/Android)
+      name: Critical (breaks through silent mode / Do Not Disturb)
       default: true
       selector:
         boolean:
-    tts_target:
-      name: Media player for TTS (optional)
+    tts_entity:
+      name: Text-to-speech engine (optional)
       default: ""
       selector:
-        text:
+        entity:
+          filter:
+            - domain: tts
+    media_player:
+      name: Speak on (optional)
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: media_player
     repeat_minutes:
       name: Repeat every (minutes) while active
       default: 3
@@ -40,12 +56,35 @@ blueprint:
 mode: restart
 max_exceeded: silent
 
-trigger:
-  - platform: state
+variables:
+  alarm_entity: !input alarm_entity
+  critical: !input critical
+  tts_entity: !input tts_entity
+  media_player: !input media_player
+
+triggers:
+  - trigger: state
     entity_id: !input alarm_entity
     to: "on"
+    id: "on"
+  - trigger: state
+    entity_id: !input alarm_entity
+    from: "on"
+    id: "off"
 
-action:
+actions:
+  - if:
+      - condition: trigger
+        id: "off"
+    then:
+      # the alarm ended: take the notification off the phone
+      - device_id: !input mobile_device
+        domain: mobile_app
+        type: notify
+        message: clear_notification
+        data:
+          tag: dronevis_alarm
+      - stop: alarm ended
   - repeat:
       while:
         - condition: state
@@ -53,24 +92,29 @@ action:
           state: "on"
       sequence:
         - variables:
-            msg: "{{ state_attr(trigger.entity_id, 'message') or 'Air alarm' }}"
-        - service: "{{ notify_target }}"
+            msg: "{{ state_attr(alarm_entity, 'message') or 'Air alarm' }}"
+        - device_id: !input mobile_device
+          domain: mobile_app
+          type: notify
+          title: "🚨 Air alarm"
+          message: "{{ msg }}"
           data:
-            title: "🚨 Air alarm"
-            message: "{{ msg }}"
-            data: >
-              {{ {'push': {'sound': {'name': 'default', 'critical': 1, 'volume': 1.0}}}
-                 if critical else {} }}
+            tag: dronevis_alarm
+            push:
+              interruption-level: "{{ 'critical' if critical else 'time-sensitive' }}"
+            ttl: 0
+            priority: high
+            channel: "{{ 'alarm_stream' if critical else 'DroneVisualizer' }}"
         - if:
             - condition: template
-              value_template: "{{ tts_target | length > 0 }}"
+              value_template: "{{ tts_entity | length > 0 and media_player | length > 0 }}"
           then:
-            - service: tts.speak
+            - action: tts.speak
+              target:
+                entity_id: !input tts_entity
               data:
                 cache: false
-                media_player_entity_id: "{{ tts_target }}"
+                media_player_entity_id: !input media_player
                 message: "{{ msg }}"
-              target:
-                entity_id: tts.piper
         - delay:
             minutes: !input repeat_minutes

@@ -28,7 +28,7 @@ from .db import Database
 from .geo.launch import (BALLISTIC_AVG_KMH, HYPERSONIC_AVG_KMH, THREAT_HOLD_MIN,
                           candidates, reaches, site_at)
 from .geo.util import compass, haversine_km
-from .ha import HAPublisher, compute_state
+from .ha import HAPublisher, cap_region_level, compute_state
 from .log import get_logger, setup_logging
 from .parse.threats import ALL_SLUGS, COLOR, FAMILY, LABEL, SHORT, SPEED_KMH
 from .predict import assess, cluster_motion, cone, dead_reckon
@@ -634,7 +634,7 @@ def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
         "track": track,
         "track_src": track_src,
         "motion": motion,
-        "danger": assess(m, ref, now, max_age_min) if ref else None,
+        "danger": cap_region_level(c, assess(m, ref, now, max_age_min)) if ref else None,
         "count": c["count"],
         "count_max": c["count_max"],
         "altitude_m": c["altitude_m"],

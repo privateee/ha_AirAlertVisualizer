@@ -2,6 +2,29 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.5 — 2026-10-11
+
+- **New blueprint: DroneVisualizer critical notification**
+  (`blueprints/automation/dronevis_critical_notification.yaml`). One push per
+  track from `event.dronevis_detected`: pick the phone from a list, the threat
+  types, and optionally "only when the danger to home is medium/high" or "only
+  within N km". Title = a one-line summary ("Jet UAV ×2 · Бровари → Київ ·
+  12 km NE · ~6 min"), body = the channel's post, tap opens it on t.me. Each
+  track has its own notification tag (an update replaces its previous alert);
+  iOS critical / Android alarm channel; optional quiet time.
+- **`event.dronevis_detected` fires again when a known track gets more
+  dangerous**: new attribute `reason` = `new` / `escalated` (danger to home
+  rose to medium/high - once per level) / `toward` (turned toward home,
+  arriving within an hour - once). New attributes `summary`, `message`,
+  `line`, `url`, `post_channel`, `cluster_id`, `passes_km`.
+- **Air alarm blueprint rewritten**: phone picker instead of a typed notify
+  service, any TTS engine / media player (no hard-coded Piper), iOS
+  interruption-level + tag, clears the notification when the alarm ends.
+  Re-import it and re-select the phone in existing automations.
+- **Fix: a whole-oblast report ("Київська обл.") was "high danger"** when the
+  oblast's centre happened to be near home. On its own it now caps at low
+  (drones) / medium (missiles) - on the map and in HA alike.
+
 ## 1.1.4 — 2026-10-11
 
 - **Map: tap a track leg** to see which posts drew it: from -> to, distance,

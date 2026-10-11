@@ -62,12 +62,26 @@ With the **Mosquitto broker** add-on installed, DroneVisualizer publishes a
 | `sensor.dronevis_threat_level` | `none` / `low` / `medium` / `high` for the area centre. **high**: within 10 km, descending within 25 km, or on course to arrive within 15 min; **medium**: on course within 45 min, or close in time with the direction unknown |
 | `sensor.dronevis_eta` | minutes until the nearest track that is on course for the area centre gets there (empty when none is) |
 | `sensor.dronevis_last_update` | timestamp of the latest report |
-| `event.dronevis_detected` | fires once for **every** newly-seen report, even while a `binary_sensor` is already on. `binary_sensor.dronevis_alarm` only re-triggers on an off→on edge, so a second shahed group reported while the first is still active won't refire it — this event does. Its `event_type` is the threat slug (`shahed`, `kinzhal`, …); attributes carry `place_name`, `count`, `dest_name`, `nearest_km`, `nearest_bearing`, `sources`, `confidence`, `level`, `toward`, `eta_min`. Silent on the first publish after a restart (so already-active threats don't all fire at once) |
+| `event.dronevis_detected` | fires once for **every** newly-seen report, even while a `binary_sensor` is already on. `binary_sensor.dronevis_alarm` only re-triggers on an off→on edge, so a second shahed group reported while the first is still active won't refire it — this event does. Its `event_type` is the threat slug (`shahed`, `kinzhal`, …); attributes carry `place_name`, `count`, `dest_name`, `nearest_km`, `nearest_bearing`, `sources`, `confidence`, `level`, `toward`, `eta_min`, `passes_km`, plus `summary` (a ready one-line title), `message` / `line` / `url` / `post_channel` (the newest post, its line and t.me link), `cluster_id`, and `reason`: `new` (a new track), `escalated` (a known track's danger to home rose to medium/high - once per level) or `toward` (it turned toward home, arriving within an hour - once). Silent on the first publish after a restart (so already-active threats don't all fire at once) |
 
-Import `blueprints/automation/dronevis_alert.yaml` for a ready critical-push /
-TTS automation driven by `binary_sensor.dronevis_alarm`. For "notify me about
-every new report, not just the first", trigger on `event.dronevis_detected`
-instead (optionally filtered to specific `event_type`s).
+Two ready blueprints (Settings → Automations → Blueprints → Import, paste the
+GitHub link):
+
+* **DroneVisualizer critical notification** -
+  `blueprints/automation/dronevis_critical_notification.yaml`. One push per
+  track and per escalation, from `event.dronevis_detected`: pick your phone,
+  the threat types, and optionally "only when the danger to home is
+  medium/high" or "only within N km". Title = `summary`
+  ("Jet UAV ×2 · Бровари → Київ · 12 km NE · ~6 min"), body = the channel's
+  post, tap opens it; each track has its own tag, so its update replaces the
+  previous alert. iOS critical / Android alarm channel, optional quiet time.
+* **DroneVisualizer air alarm** - `blueprints/automation/dronevis_alert.yaml`.
+  Repeats while `binary_sensor.dronevis_alarm` is on (ballistic by default),
+  optional TTS, clears the notification when the alarm ends.
+
+Links:
+`https://github.com/privateee/ha_AirAlertVisualizer/blob/main/blueprints/automation/dronevis_critical_notification.yaml`,
+`https://github.com/privateee/ha_AirAlertVisualizer/blob/main/blueprints/automation/dronevis_alert.yaml`
 
 `GET /api/ha` (inside the ingress panel) returns the same snapshot as JSON.
 

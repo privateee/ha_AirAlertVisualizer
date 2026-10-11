@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.5
+
+New blueprint "DroneVisualizer critical notification": a push per track (and
+again when a track gets closer or turns toward home) with a one-line summary,
+the channel's post, and a tap-to-open link; filters by threat type, danger
+level and distance. The "Threat detected" event gains `reason`, `summary`,
+`message` and `url`. The air-alarm blueprint is modernised - re-import it and
+re-select your phone. Fix: a whole-oblast report no longer counts as high
+danger just because the oblast's centre is near home.
+
 ## 1.1.4
 
 Map: tap a track leg to see the two posts behind it (distance, time, speed).

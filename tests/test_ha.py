@@ -156,3 +156,70 @@ def test_a_second_new_cluster_fires_again_while_first_still_active(db):
     pub.publish(compute_state(db, load_config()))
     evs = _events(client)
     assert [e["place_name"] for e in evs] == ["A", "B"]
+
+
+def _state(*tracks):
+    """A hand-made compute_state() result: (id, level, toward, eta_min)."""
+    detail = [{"id": i, "place_name": f"P{i}", "count": 1, "dest_name": None,
+               "channels": ["kpszsu"], "nearest_km": 20.0, "nearest_bearing": "N",
+               "confidence": 0.9, "updated": "", "level": lvl, "toward": tw,
+               "eta_min": eta, "passes_km": None, "message": "m", "line": "l",
+               "url": f"https://t.me/kpszsu/{i}", "post_channel": "kpszsu", "summary": "s"}
+              for i, lvl, tw, eta in tracks]
+    return {"threats": {"shahed": {"label": "Shahed", "cluster_detail": detail}},
+            "area": "Kyiv"}
+
+
+def _fire(pub, state):
+    client = _FakeClient()
+    pub._publish_new_detections("dv", client.publish, state)
+    return [(e["cluster_id"], e["reason"]) for e in _events(client)]
+
+
+def test_known_track_refires_once_when_it_gets_more_dangerous():
+    pub, _ = _publisher()
+    assert _fire(pub, _state((1, "low", False, None))) == []          # prime
+    assert _fire(pub, _state((1, "low", False, None))) == []
+    assert _fire(pub, _state((1, "medium", True, 30))) == [(1, "escalated")]
+    assert _fire(pub, _state((1, "medium", True, 25))) == []          # same level
+    assert _fire(pub, _state((1, "low", False, None))) == []          # eased off...
+    assert _fire(pub, _state((1, "medium", True, 30))) == []          # ...back: no repeat
+    assert _fire(pub, _state((1, "high", True, 8))) == [(1, "escalated")]
+
+
+def test_turning_toward_you_fires_once_and_new_beats_escalated():
+    pub, _ = _publisher()
+    _fire(pub, _state())
+    assert _fire(pub, _state((1, "high", True, 5))) == [(1, "new")]   # one event, not two
+    assert _fire(pub, _state((1, "high", True, 5), (2, "low", False, None))) == [(2, "new")]
+    assert _fire(pub, _state((1, "high", True, 5), (2, "low", True, 50))) == [(2, "toward")]
+    assert _fire(pub, _state((1, "high", True, 5), (2, "low", True, 40))) == []
+    # far-off "toward" (arrives in 3 h) isn't news
+    assert _fire(pub, _state((1, "high", True, 5), (2, "low", True, 40),
+                             (3, "low", False, None))) == [(3, "new")]
+    assert _fire(pub, _state((3, "low", True, 180))) == []
+
+
+def test_event_carries_the_post_text_link_and_summary(db):
+    pub, client = _publisher()
+    pub.publish(compute_state(db, load_config()))
+    _cluster(db, threat_type="shahed", place_name="Бровари", count=2)
+    pub.publish(compute_state(db, load_config()))
+    ev = _events(client)[0]
+    assert ev["reason"] == "new" and ev["url"] == "u" and ev["message"] == "t"
+    assert "×2 · Бровари · " in ev["summary"] and " km " in ev["summary"]
+
+
+def test_whole_oblast_fix_is_not_high_danger_by_being_near(db):
+    """"Київська обл." is placed at the oblast's centre, on top of Kyiv - that
+    alone mustn't fire a "high danger" alert."""
+    cfg = load_config()
+    _cluster(db, threat_type="jet_uav", place_name="Київська обл.",
+             centroid_lat=50.45, centroid_lon=30.52)
+    _cluster(db, threat_type="ballistic", place_name="Київська обл.",
+             centroid_lat=50.45, centroid_lon=30.52)
+    _cluster(db, threat_type="shahed", place_name="Київ", centroid_lat=50.45, centroid_lon=30.52)
+    s = compute_state(db, cfg)
+    lvl = {k: t["cluster_detail"][0]["level"] for k, t in s["threats"].items()}
+    assert lvl["jet_uav"] == "low" and lvl["ballistic"] == "medium"
+    assert lvl["shahed"] == "high"                    # a real place stays as it is
