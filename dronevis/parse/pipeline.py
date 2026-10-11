@@ -103,7 +103,8 @@ _NEWS_RX = re.compile(
     r"|укренерго|\bтец\b|евакуац|опалювал|наслидк|[ву]насл\w*\s+атак|писля\s+атак|кадри"
     # reported speech and outage words: "В КЦ повідомили, що в Києві ввели
     # екстрені" (emergency power cuts) - short, names Київ, but it's news
-    r"|повидомил|повидомля|заявил|заявив|розповив|\bввели\b|екстрен|аварийн|стабилизац",
+    r"|повидомил|повидомля|заявил|заявив|розповив|\bввели\b|екстрен|аварийн|стабилизац"
+    r"|напруг",                     # "Напруга зараз місцями по Києву" - power is back
 )
 _TRACK_LINE_RX = re.compile(r"бпла|реактив|шахед|мопед|курс\w*\s+на")
 
@@ -291,7 +292,15 @@ class Parser:
                 # "Чабани зниження") - in a news channel prose that merely
                 # names a place is a story, not a sighting
                 header_only = li == 0 and len(lines) > 1 and first_line.rstrip().endswith(":")
-                if terse and hits and not header_only and (not news or len(line) <= 45):
+                # ... and in a news channel the place must be specific: its
+                # sightings name a district / village ("Вишгород", "Чабани
+                # зниження"); a bare "Київ" / "області" is a news line
+                # ("Напруга зараз місцями по Києву та області")
+                coarse_only = news and all(
+                    h.place.kind == "oblast" or (h.place.kind == "city" and h.place.rank >= 5)
+                    for h in hits)
+                if (terse and hits and not header_only and not coarse_only
+                        and (not news or len(line) <= 45)):
                     tm = _UNKNOWN_MATCH
                 else:
                     continue

@@ -102,3 +102,20 @@ def test_channel_names_accept_links_and_handles(monkeypatch):
 def test_outage_news_is_not_a_sighting(parser):
     """kievreal1, 2026-10-11 09:53: emergency power cuts, not a drone over Kyiv."""
     assert parser.parse("В КЦ повідомили, що в Києві ввели екстрені" + FOOT, channel=CH) == []
+
+
+@pytest.mark.parametrize("text", [
+    "Напруга зараз місцями по Києву та області",       # 2026-10-11 11:22, power news
+    "Київ",                                              # a bare big city says nothing
+    "По Києву та області",
+])
+def test_bare_big_city_is_not_a_sighting(parser, text):
+    assert parser.parse(text + FOOT, channel=CH) == []
+
+
+def test_kyiv_banks_are_in_kyiv(parser):
+    """"Правий берег" used to resolve to a district of Mariupol (GeoNames) and
+    "Лівий берег" to one near Dnipro - kievreal1 means Kyiv's banks."""
+    for text in ("Правий берег", "Лівий берег БПЛА"):
+        (e,) = parser.parse(text + FOOT, channel=CH, area_center=(50.45, 30.52))
+        assert e.place_name.endswith("(Київ)") and 50.3 < e.lat < 50.6 and 30.3 < e.lon < 30.8
