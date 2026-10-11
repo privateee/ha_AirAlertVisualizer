@@ -17,10 +17,19 @@ def test_home_parsing(monkeypatch, tmp_path):
 
 
 def test_close_to_home_is_at_least_medium():
-    assert _level(25, False, None, True, 30) == "medium"                    # 25 km, sideways
-    assert _level(25, False, None, True, 30, receding=True) == "low"        # leaving
-    assert _level(60, False, None, True, 30) == "low"
+    # missiles / bombs / aviation: within 30 km of home and not leaving
+    assert _level(25, False, None, True, 30, family="ballistic") == "medium"
+    assert _level(25, False, None, True, 30, receding=True, family="ballistic") == "low"
+    assert _level(60, False, None, True, 30, family="cruise") == "low"
     assert _level(8, False, None, True, 3) == "high"
+
+
+def test_drones_count_as_close_only_within_5_km():
+    """Around Kyiv there's nearly always a drone within 30 km - that kept the
+    danger amber all night. For drones (and untyped sightings) only 5 km."""
+    assert _level(25, False, None, True, 30, family="drone") == "low"
+    assert _level(25, False, None, True, 30, family="unknown") == "low"
+    assert _level(4.5, False, None, True, 30, family="drone") == "high"   # <=10 km: high anyway
 
 
 def test_api_measures_from_home(monkeypatch, tmp_path):

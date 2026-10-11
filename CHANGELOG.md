@@ -2,6 +2,13 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.1 — 2026-10-11
+
+- "Close to home" for drones (and untyped sightings) is now **5 km**, not
+  30 km: around a big city there's nearly always a drone within 30 km,
+  which kept the danger amber all night. Missiles, КАБ and aviation keep
+  30 km. Drones within 10 km are still "high" as before.
+
 ## 1.1.0 — 2026-10-11
 
 ### Missiles and ballistic threats

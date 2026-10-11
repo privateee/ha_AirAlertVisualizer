@@ -56,6 +56,9 @@ STATIONARY = {"circling", "impact", "clear"}
 
 NEAR_KM = 10.0                   # this close is high danger whatever the course
 CLOSE_KM = 30.0                  # this close and not moving away: at least medium
+# ... except drones: around a big city there's nearly always one within 30 km,
+# which would keep the danger amber all night - for them only really close
+CLOSE_KM_BY_FAMILY = {"drone": 5.0, "unknown": 5.0}
 DIVE_NEAR_KM = 25.0              # descending this close is high danger too
 ALT_DROP = 0.7                   # latest altitude <= 70% of the previous = descending
 ON_COURSE_KM = 10.0              # a pass this close counts as "toward you"
@@ -83,6 +86,7 @@ class Motion:
     descending: bool = False     # said so, or its reported altitude is dropping
     alt_trend: str | None = None  # "down" | "up" from the last two altitudes
     status: str = "unknown"
+    family: str = "unknown"
 
     def to_dict(self) -> dict:
         return {
@@ -178,7 +182,7 @@ def estimate_motion(
     if descending:
         horizon = min(horizon, 2.0)          # it's coming down, not flying on
     return Motion(fix, heading, src, spread, speed, observed, moving, horizon, dest,
-                  descending, trend, status)
+                  descending, trend, status, family)
 
 
 def cluster_motion(c, evs, speed_kmh: dict[str, float]):
@@ -240,11 +244,12 @@ def cone(m: Motion, steps: int = 6) -> list[tuple[float, float]]:
 
 
 def _level(dist: float, toward: bool, eta: float | None, moving: bool,
-           reach_min: float, descending: bool = False, receding: bool = False) -> str:
+           reach_min: float, descending: bool = False, receding: bool = False,
+           family: str = "unknown") -> str:
     if dist <= NEAR_KM or (descending and dist <= DIVE_NEAR_KM):
         return "high"
     # close to home and not leaving: worth more than "low" whatever the course
-    close = dist <= CLOSE_KM and not receding
+    close = dist <= CLOSE_KM_BY_FAMILY.get(family, CLOSE_KM) and not receding
     if toward and eta is not None:
         if eta <= 15:
             return "high"
@@ -302,5 +307,5 @@ def assess(m: Motion, ref: tuple[float, float], now: datetime,
         "receding": receding,
         "stale": over,
         "level": "low" if over else _level(dist, toward, eta, m.moving, dist / v,
-                                           m.descending, receding),
+                                           m.descending, receding, m.family),
     }

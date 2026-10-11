@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+"Close to home" for drones is now 5 km instead of 30 km, so a drone
+somewhere around the city no longer keeps the danger amber all night.
+Missiles, КАБ and aviation keep 30 km.
+
 ## 1.1.0
 
 - **Ballistic / missile threats from Брянськ, Курськ, Бєлгород, Воронеж,
