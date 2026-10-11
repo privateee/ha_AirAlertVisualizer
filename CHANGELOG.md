@@ -2,6 +2,21 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.2 — 2026-10-11
+
+- **Fix: lines across the map joining different drones.** kpszsu's
+  "Київ: реактивний БпЛА на Теремки" was a fix on Kyiv's centre with the
+  district as destination - every such post was the same coarse point that
+  chained to anything around (a line from Kyiv to Вороньків / Переяслав).
+  The district is now the position. And a report that states its own
+  direction ("з Чернігівщини на Вишгородський район") no longer joins a
+  track flying another way (headings > 90° apart) - the ~100 km Переяслав
+  -> Вишгород line across Kyiv was two drones.
+- **Fix: "Правий берег" was drawn in Mariupol** and "Лівий берег" near
+  Dnipro (mislabelled GeoNames entries): Kyiv's banks added as districts.
+- kievreal1: a place-only line must name a specific place - a bare "Київ" /
+  "по області" is news ("Напруга зараз місцями по Києву та області").
+
 ## 1.1.1 — 2026-10-11
 
 - "Close to home" for drones (and untyped sightings) is now **5 km**, not

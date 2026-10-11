@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.2
+
+Fix: tracks no longer draw long lines joining different drones (e.g.
+Переяслав -> Вишгород across Kyiv, or Kyiv -> Вороньків): kpszsu's
+"Київ: … на Теремки" posts are placed at the district, and a report that
+says where it's coming from doesn't join a track flying another way.
+"Правий / Лівий берег" are Kyiv's banks (they were drawn in Mariupol / near
+Dnipro). Power-news lines from kievreal1 no longer show as sightings.
+
 ## 1.1.1
 
 "Close to home" for drones is now 5 km instead of 30 km, so a drone
