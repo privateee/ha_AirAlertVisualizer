@@ -75,3 +75,27 @@ def test_also_reply_adds_drones():
     assert adds_more("🏍 Також реактивні БпЛА у напрямку Макарова з півночі.")
     assert adds_more("🏍 Ще один реактивний БпЛА курсом на Дніпро.")
     assert not adds_more("🏍 Реактивний БпЛА через Хмельниччину у напрямку Рівненщини.")
+
+
+def test_reply_to_a_multi_drone_post_follows_the_nearest_reachable(db):
+    """AerisRimor 13:23 listed drones at Бородянка … and Очаків; the reply
+    13:25 'Блиставиця на Бучу' continues the Бородянка one - it used to
+    follow the first quoted track, drawing Очаків -> Буча (448 km in 2 min)."""
+    dd = Deduper(db, load_config())
+    t0 = datetime(2026, 10, 10, 13, 23, tzinfo=timezone.utc)
+    rid, _ = db.upsert_raw_message("AerisRimor", 89823, "u", t0.isoformat(), "multi")
+    cids = []
+    for place, lat, lon in (("Очаків", 46.61, 31.55), ("Бородянка", 50.65, 29.92)):
+        ev = _ev(place, lat, lon)
+        row = ev.to_row()
+        row.update(raw_message_id=rid, channel="AerisRimor", posted_at=t0.isoformat())
+        cids.append(dd.assign(db.insert_event(row), ev, "AerisRimor", t0.isoformat()))
+    ochakiv, borodianka = cids
+    assert ochakiv != borodianka
+    follow = [r["cluster_id"] for r in db.reply_clusters("AerisRimor", 89823)]
+    t1 = (t0 + timedelta(minutes=2)).isoformat()
+    rid2, _ = db.upsert_raw_message("AerisRimor", 89824, "u2", t1, "Блиставиця на Бучу.", 89823)
+    ev = _ev("Буча", 50.55, 30.21)
+    row = ev.to_row()
+    row.update(raw_message_id=rid2, channel="AerisRimor", posted_at=t1)
+    assert dd.assign(db.insert_event(row), ev, "AerisRimor", t1, follow=follow) == borodianka

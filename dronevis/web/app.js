@@ -866,17 +866,7 @@ function renderClusters() {
     const badge = c.count != null ? String(c.count) : (c.event_count > 1 ? String(c.event_count) : "");
 
     // movement guess: the path through successive reported positions
-    if (Array.isArray(c.track) && c.track.length >= 2) {
-      L.polyline(c.track, {
-        color: c.color, weight: 2.5, opacity: 0.85 * op, lineJoin: "round",
-      }).addTo(layer);
-      for (const pt of c.track.slice(0, -1)) {
-        L.circleMarker(pt, {
-          radius: 2.5, color: c.color, weight: 0,
-          fillColor: c.color, fillOpacity: 0.55 * op,
-        }).addTo(layer);
-      }
-    }
+    if (Array.isArray(c.track) && c.track.length >= 2) drawTrack(c.track, c.color, op);
 
     if (c.status === "circling") {
       L.circle([c.lat, c.lon], { radius: 9000, color: c.color, weight: 1,
@@ -1072,6 +1062,43 @@ function popupHtml(c) {
 }
 
 // small-distance destination point, km -> lat/lon
+// The path a track flew, so you can see how it moved: a smooth curve through
+// the reported places (Catmull-Rom - it passes through every fix, so the
+// smoothing never moves a report), fading from faint (oldest leg) to solid
+// (the latest), thin to thick. A manoeuvring jet over the city reads as a
+// path instead of a tangle of equal straight lines.
+function catmullRom(p0, p1, p2, p3, steps) {
+  const out = [];
+  for (let i = 1; i <= steps; i += 1) {
+    const t = i / steps, t2 = t * t, t3 = t2 * t;
+    const f = (a, b, c, d) => 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2
+      + (-a + 3 * b - 3 * c + d) * t3);
+    out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+  }
+  return out;
+}
+
+function drawTrack(track, color, op) {
+  const n = track.length - 1;                     // number of legs
+  for (let i = 0; i < n; i += 1) {
+    const p0 = track[Math.max(0, i - 1)], p1 = track[i], p2 = track[i + 1];
+    const p3 = track[Math.min(n, i + 2)];
+    const k = (i + 1) / n;                        // 0..1, oldest -> newest
+    L.polyline([p1, ...catmullRom(p0, p1, p2, p3, 10)], {
+      color, weight: 1.5 + 1.8 * k, opacity: (0.12 + 0.78 * k) * op,
+      lineJoin: "round", lineCap: "round", interactive: false,
+    }).addTo(layer);
+  }
+  // the reported places along the way, fading the same way
+  track.slice(0, -1).forEach((pt, i) => {
+    const k = (i + 1) / n;
+    L.circleMarker(pt, {
+      radius: 2.5, color, weight: 0, interactive: false,
+      fillColor: color, fillOpacity: (0.15 + 0.5 * k) * op,
+    }).addTo(layer);
+  });
+}
+
 // A missile's possible trajectory: launch area -> target as a gentle arc,
 // dashed while it can still change, solid once final ("спуск" / impact), with
 // distance and flight time *next to the target* (that's where the viewer

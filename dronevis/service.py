@@ -167,16 +167,24 @@ class Service:
         self, raw_id: int, channel: str, text: str, posted_at: str,
         reply_to: int | None = None,
     ) -> int:
-        events = self.parser.parse(
-            text, channel=channel, area_center=self._area_center
-        )
+        # A reply's places are resolved near the thread it replies to:
+        # "Низько йде, Приморський район" under an Odesa post is Odesa's
+        # district, not Приморський in Donetsk oblast.
+        quoted = self.db.reply_clusters(channel, reply_to) if reply_to else []
+        center = self._area_center
+        if quoted:
+            q = self.db.query_one("SELECT centroid_lat, centroid_lon FROM cluster WHERE id=?",
+                                  (quoted[0]["cluster_id"],))
+            if q is not None and q["centroid_lat"] is not None:
+                center = (q["centroid_lat"], q["centroid_lon"])
+        events = self.parser.parse(text, channel=channel, area_center=center)
         # A reply ("Вінниччина: … Козятина" <- "… через Хмельниччину у напрямку
         # Рівненщини") is the channel saying *that* drone moved on: its report
         # continues the quoted post's track. Not "Також ..." / "Ще один ...",
         # which add more drones.
         follow: list[int] = []
-        if reply_to and events and not adds_more(text):
-            follow = [r["cluster_id"] for r in self.db.reply_clusters(channel, reply_to)]
+        if quoted and events and not adds_more(text):
+            follow = [r["cluster_id"] for r in quoted]
         if not events:
             self._resolve_all_clear(text, channel, posted_at, reply_to)
         # one post -> one transaction (one fsync, and atomic)

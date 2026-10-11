@@ -51,6 +51,8 @@ _TO_CITY_RX = re.compile(
 # A drone known only by "target + side" is put this far out on that side -
 # outside a city's edge, a few minutes' flight in.
 APPROACH_KM = 15.0
+# "з / із / зі / від / из / от <region>" - the region a line's drone comes from
+_FROM_REGION_RX = re.compile(r"\b(?:з|из|зи|вид|от)\s+((?:тот\s+)?\w+(?:\s+област\w*)?)")
 # a "destination" this close to a big city's centre is a district of it
 CITY_DISTRICT_KM = 25.0
 _FROM_SIDE = {
@@ -260,6 +262,12 @@ class Parser:
         # follows without repeating it ("3 ... на Ковель", not "3 мопеда ...
         # на Ковель"). Capture it from the header line only, and only a real
         # RULES match - not classify_line's generic-motion "unknown" fallback.
+        # a region named by a header line ("Полтавщина:") applies to every
+        # report below it
+        header_region = None
+        if first_line.rstrip().endswith(":"):
+            hr = self.gaz.region_hit(fold(first_line))
+            header_region = (hr[0], hr[1][0], hr[1][1]) if hr else None
         header_tm = classify_line(fold(first_line))
         post_default_type = (
             header_tm.slug if header_tm is not None and header_tm.slug != "unknown" else None
@@ -315,6 +323,21 @@ class Parser:
             if HINT_CIRCLE in fline and dr.status in ("moving", "unknown"):
                 dr.status = "circling"            # war_monitor's 🔄 marker
 
+            # This line's own origin region: "1 реактивний БпЛА з Чернігівщини
+            # на Київщину, Вишгородський район" (monitor_ukr: one drone per
+            # line). Regions used to be taken from the whole post, so a line
+            # lost its own "з Чернігівщини" (no direction - it then joined a
+            # track flying the opposite way) or got another line's region.
+            line_origin = None
+            m_from = _FROM_REGION_RX.search(fline)
+            if m_from:
+                rh = self.gaz.region_hit(m_from.group(1))
+                if rh:
+                    line_origin = (rh[0], rh[1][0], rh[1][1])
+            # in a multi-line post a line without its own region doesn't borrow
+            # one from another report line - only from a header ("Полтавщина:")
+            line_region = line_origin or (region if len(lines) == 1 else header_region)
+
             # everything below works with plain (name, lat, lon) triples
             pos = _triple(dr.primary)
             dest = _triple(dr.dest)
@@ -351,7 +374,7 @@ class Parser:
                     # "курсом на Обухів" with only a vague area around it: the
                     # target is the best-known point; a source / region word is
                     # merely the direction of approach.
-                    origin = src or region
+                    origin = src or line_region
                     pos, dest, src = dest, None, origin
                     if origin and heading is None and origin[1:] != pos[1:]:
                         heading = bearing_deg((origin[1], origin[2]), (pos[1], pos[2]))
@@ -375,6 +398,11 @@ class Parser:
 
             if dest is not None and pos is not None and dest[0] == pos[0]:
                 dest = None
+            # a known position and this line's origin region: that's the
+            # direction it's flying ("з Чернігівщини ... Вишгородський район")
+            if (heading is None and pos is not None and line_origin is not None
+                    and haversine_km((line_origin[1], line_origin[2]), (pos[1], pos[2])) > 15):
+                heading = bearing_deg((line_origin[1], line_origin[2]), (pos[1], pos[2]))
             if src is not None and pos is not None and src[0] == pos[0]:
                 src = None
 

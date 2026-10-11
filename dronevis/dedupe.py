@@ -30,6 +30,7 @@ from .parse.threats import FAMILY, MAX_SPEED_KMH
 MISSILE_FAMILIES = ("ballistic", "cruise")
 MISSILE_UPDATE_S = 15 * 60       # a channel's follow-up on its missile, within this
 DIRECTION_CONFLICT_DEG = 90.0    # stated headings further apart: different drones
+REPLY_FLOOR_KM = 30.0            # a reply's place may be this far off whatever the gap
 
 
 def _dt(iso: str) -> datetime:
@@ -65,6 +66,11 @@ class Deduper:
         family = FAMILY.get(ev.threat_type, "unknown")
         max_span = timedelta(minutes=self.cfg.max_span_minutes)
 
+        # A reply to a post that listed several drones ("Реактив на Бородянку /
+        # Реактив північ ВДСХ / … / Очаків") continues ONE of them: the nearest,
+        # and only if it could physically have got there - it used to take
+        # the first one, joining "Блиставиця на Бучу" to Очаків, 448 km away.
+        best_follow = None
         for cid in follow or []:
             c = self.db.query_one("SELECT * FROM cluster WHERE id=?", (cid,))
             if c is None or c["resolved_at"] is not None:
@@ -72,10 +78,21 @@ class Deduper:
             cf = FAMILY.get(c["threat_type"], "unknown")
             if cf != family and "unknown" not in (cf, family):
                 continue                     # a missile reply to a drone report
-            if abs((now - _dt(c["last_posted_at"])).total_seconds()) > 3 * window.total_seconds():
+            gap_s = abs((now - _dt(c["last_posted_at"])).total_seconds())
+            if gap_s > 3 * window.total_seconds():
                 continue
-            self._attach(cid, event_id, ev, channel, posted_at)
-            return cid
+            d = 0.0
+            if ev.lat is not None and c["centroid_lat"] is not None:
+                d = haversine_km((ev.lat, ev.lon), (c["centroid_lat"], c["centroid_lon"]))
+                speed = max(self.cfg.speed_kmh.get(ev.threat_type, 220.0),
+                            self.cfg.speed_kmh.get(c["threat_type"], 220.0))
+                if d > max(REPLY_FLOOR_KM, speed * gap_s / 3600.0 * self.cfg.speed_slack):
+                    continue
+            if best_follow is None or d < best_follow[0]:
+                best_follow = (d, cid)
+        if best_follow is not None:
+            self._attach(best_follow[1], event_id, ev, channel, posted_at)
+            return best_follow[1]
 
         # the post this event came from - same for every candidate cluster
         mine = (self.db.query_one("SELECT raw_message_id FROM event WHERE id=?", (event_id,))
@@ -220,6 +237,12 @@ class Deduper:
         count_match = self._count_match(ev.count, c_count)
         count_conflict = self._count_conflict(ev.count, c_count)
 
+        # flying clearly different ways (both directions stated): different
+        # drones, even at the same named place - this rule used to come first
+        # and let a "з Чернігівщини" report join a track coming from Переяслав
+        if (ev.heading_deg is not None and c["heading_deg"] is not None
+                and _angdiff(ev.heading_deg, c["heading_deg"]) > DIRECTION_CONFLICT_DEG):
+            return 0.0
         # exact same named position -> almost certainly the same object
         if ev.place_name and c["place_name"] and ev.place_name == c["place_name"]:
             return 0.80 if count_conflict else 0.95
