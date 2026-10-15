@@ -319,3 +319,43 @@ def test_stated_direction_conflict_is_another_drone(db, deduper):
                     heading_deg=209.0),
                 "kievreal1", t1.isoformat())
     assert c1 != c2
+
+
+def test_another_drone_starts_its_own_track(db, deduper):
+    t0 = datetime(2026, 10, 15, 20, 30, tzinfo=timezone.utc)
+    c1 = _store(db, deduper, _raw(db, "kyiv_golovne", 1, t0.isoformat()),
+                _ev(count=None, place_name="Вишеньки", lat=50.30, lon=30.68),
+                "kyiv_golovne", t0.isoformat())
+    t1 = t0 + timedelta(minutes=2)
+    ev = _ev(count=None, place_name="Нижні сади", lat=50.33, lon=30.66)
+    ev.another = True                       # "(це друга Герань)"
+    c2 = _store(db, deduper, _raw(db, "kyiv_golovne", 2, t1.isoformat()), ev,
+                "kyiv_golovne", t1.isoformat())
+    assert c1 != c2
+
+
+def test_destination_is_dropped_once_it_flies_away_from_it(db, deduper):
+    # "Від Вишеньок на Гнідин", then it turns west over Kyiv instead
+    t0 = datetime(2026, 10, 15, 20, 31, tzinfo=timezone.utc)
+    c1 = _store(db, deduper, _raw(db, "kyiv_golovne", 1, t0.isoformat()),
+                _ev(count=None, place_name="Вишеньки", lat=50.30, lon=30.68,
+                    dest_name="Гнідин", dest_lat=50.33, dest_lon=30.71),
+                "kyiv_golovne", t0.isoformat())
+    t1 = t0 + timedelta(minutes=4)
+    c2 = _store(db, deduper, _raw(db, "kyiv_golovne", 2, t1.isoformat()),
+                _ev(count=None, place_name="Корчувате", lat=50.36, lon=30.53),
+                "kyiv_golovne", t1.isoformat())
+    assert c1 == c2
+    assert db.query_one("SELECT dest_name FROM cluster WHERE id=?", (c1,))[0] is None
+
+
+def test_destination_stays_while_it_closes_in(db, deduper):
+    t0 = datetime(2026, 10, 15, 20, 31, tzinfo=timezone.utc)
+    c1 = _store(db, deduper, _raw(db, "a", 1, t0.isoformat()),
+                _ev(count=None, place_name="Бровари", lat=50.51, lon=30.79,
+                    dest_name="Київ", dest_lat=50.45, dest_lon=30.52),
+                "a", t0.isoformat())
+    t1 = t0 + timedelta(minutes=3)
+    _store(db, deduper, _raw(db, "a", 2, t1.isoformat()),
+           _ev(count=None, place_name="Троєщина", lat=50.51, lon=30.60), "a", t1.isoformat())
+    assert db.query_one("SELECT dest_name FROM cluster WHERE id=?", (c1,))[0] == "Київ"

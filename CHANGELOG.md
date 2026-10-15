@@ -2,6 +2,21 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.13 — 2026-10-15
+
+- **A stale destination is dropped.** "Від Вишеньок на Гнідин", then the
+  drone turned and circled west of Kyiv - the track kept "→ Гнідин" (course,
+  dashed line, a "~3 min to home" alert) from that one old report. A newer
+  fix that is further from the destination than the previous one now clears
+  it; course and danger follow the actual fixes.
+- **"друга / інший / ще одна" is another drone.** "(це друга Герань)" and
+  "Ще одна Герань-5 на Козин" start their own track instead of continuing the
+  one the channel was following; "Жуляни далі ви, інший на Боярку" is two
+  reports, and Боярка is no longer Жуляни's destination.
+- **"острів" is not Остер.** "на Рибальський острів" put a drone 60 km north
+  over Остер ("остр" + a case ending); the word "острів" no longer matches
+  it, and Рибальський, Труханів and Долобецький islands were added.
+
 ## 1.1.12 — 2026-10-15
 
 - **The period shows only that period of a drone track.** "5 min" used to

@@ -32,6 +32,7 @@ MISSILE_FAMILIES = ("ballistic", "cruise")
 MISSILE_UPDATE_S = 15 * 60       # a channel's follow-up on its missile, within this
 DIRECTION_CONFLICT_DEG = 90.0    # stated headings further apart: different drones
 REPLY_FLOOR_KM = 30.0            # a reply's place may be this far off whatever the gap
+STALE_DEST_KM = 3.0              # this much further from its target: it gave up on it
 
 
 def _dt(iso: str) -> datetime:
@@ -71,6 +72,11 @@ class Deduper:
 
         if ev.threat_type == "clear":
             return self._resolve_nearby(ev, posted_at)
+
+        # "це друга Герань" / "інший на Боярку": the channel says it's not the
+        # one it was following - a track of its own (others may join it later)
+        if getattr(ev, "another", False):
+            return self._create(event_id, ev, channel, posted_at)
 
         family = FAMILY.get(ev.threat_type, "unknown")
         max_span = timedelta(minutes=self.cfg.max_span_minutes)
@@ -436,6 +442,13 @@ class Deduper:
                 patch["dest_name"] = ev.dest_name
                 patch["dest_lat"] = ev.dest_lat
                 patch["dest_lon"] = ev.dest_lon
+            elif (c["dest_lat"] is not None and ev.lat is not None and None not in old_pos
+                  and haversine_km((ev.lat, ev.lon), (c["dest_lat"], c["dest_lon"]))
+                  > haversine_km(old_pos, (c["dest_lat"], c["dest_lon"])) + STALE_DEST_KM):
+                # it's moving away from the destination an older report gave
+                # ("Від Вишеньок на Гнідин", then Корчувате, Жуляни, Вишневе):
+                # that target is stale - course and danger follow the fixes now
+                patch["dest_name"] = patch["dest_lat"] = patch["dest_lon"] = None
 
             # the marker tracks the object: its position is the latest fix,
             # not the average of everywhere it has been seen

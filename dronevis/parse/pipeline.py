@@ -130,6 +130,14 @@ NEWS_SIGNATURE = {"kyiv_golovne": "київ головне"}
 # A bare "водосховище" ("на Дніпровське / водосховище") is whichever reservoir
 # the rest of the post is near - there are several on the Dnipro alone. With
 # no named place within this distance it says nothing about where.
+# "це друга Герань", "інший на Боярку", "ще одна Герань-5 на Козин" - a
+# second object, not the one the channel was following (folded text)
+_ANOTHER_RX = re.compile(
+    r"\b(?:инш(?:ий|а|е|ого|ои)|друг(?:а|ий|е|ою|ои)|ще\s+од(?:ин|на|не|ну))\b")
+# "Жуляни далі ви, інший на Боярку": the part after the comma is the other
+# one - its own line, so Боярка isn't Жуляни's destination (display text)
+_ANOTHER_SPLIT = re.compile(r",\s*(?=(?:[іи]нш|друг|ще\s+од)\w*\b)", re.I)
+
 _BARE_WATER_RX = re.compile(r"(?<![\w'])(?:водосховищ|водохранилищ)\w*")
 BARE_WATER_KM = 100.0           # a reservoir is ~100 km long; this is its centre
 
@@ -168,6 +176,10 @@ class ParsedEvent:
     parse_method: str = "rules"
     parse_confidence: float = 0.0
     altitude_m: int | None = None
+    # the line says it's a *different* object ("це друга Герань", "інший на
+    # Боярку", "ще одна на Козин"): start a track, don't continue one.
+    # In-memory only (dedupe reads it), not stored.
+    another: bool = False
 
     @property
     def family(self) -> str:
@@ -318,7 +330,7 @@ class Parser:
         )
 
         events: list[ParsedEvent] = []
-        lines = split_lines(display)
+        lines = [piece for ln in split_lines(display) for piece in _ANOTHER_SPLIT.split(ln)]
         post_anchors: list[tuple[float, float]] | None = None   # for _bare_water
         for li, line in enumerate(lines):
             fline = fold(line)
@@ -416,7 +428,8 @@ class Parser:
                 geo_conf = 0.45
 
             if pos is None:
-                hp = _triple(header_place)
+                # "Жуляни\nінший на Боярку": the other one isn't at the header
+                hp = None if _ANOTHER_RX.search(fline) else _triple(header_place)
                 if hp is not None:
                     # a precise leading place ("Бровари:") is where it is now
                     pos, geo_conf = hp, 0.55
@@ -500,6 +513,8 @@ class Parser:
                     and fold(ev.threat_raw or "").startswith("ракет")
                     and site_at(ev.lat, ev.lon) is not None):
                 ev.threat_type = "ballistic"
+            if _ANOTHER_RX.search(fold(ev.raw_line or "")):
+                ev.another = True
 
         if self._llm is not None and self._llm.should_run(text, events):
             try:

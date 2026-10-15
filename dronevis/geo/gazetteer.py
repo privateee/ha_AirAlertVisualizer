@@ -34,6 +34,10 @@ _SUFFIX = r"[а-яёʼ'\-]{0,3}(?![а-яёa-z])"
 # than anyone ever reports the villages themselves.
 _WORD_NAMES = {"Нове", "Сад"}
 
+# Everyday nouns that look like a declined place name. Folded forms.
+_COMMON_NOUNS = {"острив", "острова", "острови", "островах", "остров", "островами",
+                 "острову"}
+
 # Region words ("Київщина", "на Харківщині", "Одещина") -> oblast key. Matched
 # independently of the place list so they always resolve to the oblast, never
 # to the same-named city.
@@ -369,6 +373,10 @@ class Gazetteer:
             # "Черкаська область", "Київської обл." - an oblast adjective (the
             # region matcher owns those), not the town the key belongs to
             if swallowed and _OBLAST_AFTER_RE.match(folded_text, m.end()):
+                continue
+            # "острів" (island) is "остр" + a case ending - Остер's stem.
+            # "на Рибальський острів" put a drone over Остер, 60 km north
+            if fold(m.group(0)) in _COMMON_NOUNS:
                 continue
             span = (m.start(), m.end())
             if any(s <= span[0] < e for s, e in seen_spans):

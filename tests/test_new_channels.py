@@ -135,3 +135,31 @@ def test_one_ch_region_spelling_steers_the_homonym(parser, region):
     ev = parser.parse(f"Реактивний БпЛА на {region}, між н.п.Калинівка та Стрижавка",
                       channel="kpszsu", area_center=(50.45, 30.52))[0]
     assert ev.place_name == "Калинівка (Вінницька)"
+
+
+# -- "острів" is an island, not a declined Остер -----------------------------
+@pytest.mark.parametrize("text, want", [
+    ("6× — На висоті понад 6 км на Рибальський острів", "Рибальський острів"),
+    ("Шахед над Трухановим островом", "Труханів острів"),
+    ("Шахед повз Остра на Козелець", "Остер"),
+])
+def test_island_is_not_oster(parser, text, want):
+    assert parser.parse(text, channel="kyiv_golovne", area_center=(50.45, 30.52))[0].place_name == want
+
+
+def test_bare_island_word_is_nowhere(parser):
+    assert parser.parse("Шахед над островом", channel="kyiv_golovne") == []
+
+
+# -- "друга / інший / ще одна": a different drone ---------------------------
+def test_other_one_after_a_comma_is_its_own_report(parser):
+    evs = parser.parse("Жуляни далі ви, інший на Боярку", channel="kyiv_golovne",
+                       area_center=(50.45, 30.52))
+    assert [(e.place_name, e.dest_name, e.another) for e in evs] == [
+        ("Жуляни", None, False), ("Боярка", None, True)]
+
+
+@pytest.mark.parametrize("text", ["На висоті 6.5 км на Нижні Сади (це друга Герань)",
+                                  "Ще одна Герань-5 на Козин залітає"])
+def test_second_drone_is_marked(parser, text):
+    assert parser.parse(text, channel="kyiv_golovne")[0].another

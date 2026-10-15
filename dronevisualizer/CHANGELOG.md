@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.13
+
+Stale destinations are dropped once the drone flies away from them; "друга /
+інший / ще одна" starts a separate track; "Рибальський острів" is in Kyiv,
+not Остер.
+
 ## 1.1.12
 
 The map's period shows only that period of a drone track (missiles keep
