@@ -29,6 +29,12 @@ _ADDS_MORE_RX = re.compile(r"\s*(?:також|ще\b|еще\b|и ще|и еще|
 
 # "Відбій загрози …", "отбой угрозы …" (folded)
 _ALL_CLEAR_RX = re.compile(r"\b(?:видбий|отбой)\b")
+# a short reply that says the quoted drone is gone: "Здох", "Впала",
+# "1 знищили" (horizon_of_war), "По ньому все" (kyiv_golovne) - folded
+_GONE_REPLY_RX = re.compile(
+    r"^\W*(\d+\s+)?(?:збит|збил|знищ|здох|впав|впала|упав|упала|минус|приземл"
+    r"|по\s+(?:нь?ому|нему|них|ним)\s+вс[еи])")      # folding drops "ь"
+GONE_REPLY_MAX = 40          # longer replies are reports, not an obituary
 _BALLISTIC_WORD_RX = re.compile(r"балист|отрк|искандер|кинджал")
 
 
@@ -209,9 +215,16 @@ class Service:
         the quoted one; a plain "⚪️ Відбій загрози балістики." ends the
         ballistic threats of the last hour that haven't come down yet."""
         f = strip_hints(fold(text))
-        if not _ALL_CLEAR_RX.search(f):
+        gone = (reply_to and len(f.strip()) <= GONE_REPLY_MAX
+                and _GONE_REPLY_RX.search(f))
+        if not gone and not _ALL_CLEAR_RX.search(f):
             return 0
-        if reply_to:
+        if gone:
+            ids = [r["cluster_id"] for r in self.db.reply_clusters(channel, reply_to)]
+            # "1 знищили" under a post about two: which one is unknown
+            if gone.group(1) and int(gone.group(1)) < len(ids):
+                return 0
+        elif reply_to:
             ids = [r["cluster_id"] for r in self.db.reply_clusters(channel, reply_to)]
         elif _BALLISTIC_WORD_RX.search(f):
             since = (datetime.fromisoformat(posted_at) - timedelta(hours=1)).isoformat()

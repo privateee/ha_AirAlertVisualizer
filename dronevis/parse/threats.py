@@ -143,7 +143,9 @@ RULES: list[ThreatRule] = [
     ThreatRule(
         "jet_uav", 60,
         _rx(r"\bреактив", r"\bреакт[иі]вн", r"\bjet\b", r"\bджет\b",
-            r"шахед[\s-]*238", r"\bs[\s-]?238\b", r"⟦jet⟧"),
+            r"шахед[\s-]*238", r"\bs[\s-]?238\b", r"⟦jet⟧",
+            # Герань-5 is the jet one ("На Черкащину залітає 4х герані-5")
+            r"\bгеран\w*[\s-]*5\b", r"\bгера[\s-]*5\b"),
         anti=_rx(r"нереактив"),
         generic=set(),
     ),
@@ -154,6 +156,7 @@ RULES: list[ThreatRule] = [
         r"\bбпла\b", r"\bббпла\b", r"\bуав\b", r"\buav\b",
         r"\bдрон", r"\bбезп[иі]лотник", r"\bбеспилотник",
         r"\bкам[иі]кадзе", r"\bнереактивн", r"\bнереакт[иі]вн",
+        r"\bударн(?:ий|i|и|их)\b",       # eradarrua: "Ударний на Кременчук"
         r"\bптах\w*\s+ворог",
         r"⟦uav⟧",                     # 🛵 / 🅿️ / 🔻 channel markers (normalize.py)
     )),

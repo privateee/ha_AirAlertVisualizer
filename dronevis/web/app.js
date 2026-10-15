@@ -856,10 +856,14 @@ function renderClusters() {
     if (c.lat == null) continue;
     if (!live && new Date(c.last_posted_at).getTime() > cutoff) continue;
     if (offCh.size && c.channels.every((ch) => offCh.has(ch))) continue;
+    // a threat's life (server, predict.py): a track nobody has reported for
+    // a while has moved on or gone down - its last spot is a ghost, not drawn
+    const life = c.life == null ? 1 : c.life;
+    if (live && life <= 0) continue;
     shownIds.add(c.id);
 
     const age = Math.max(0, (cutoff - new Date(c.last_posted_at).getTime()) / 60000);
-    let op = Math.max(0.25, 1 - age / winMin);
+    let op = live ? 0.3 + 0.7 * life : Math.max(0.25, 1 - age / winMin);
     // dim uncertain parses: full opacity at conf>=0.8, ~0.45x at conf 0
     const conf = clusterConfidence(c);
     op *= 0.45 + 0.55 * Math.min(1, conf / 0.8);

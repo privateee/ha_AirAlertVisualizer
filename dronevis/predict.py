@@ -188,9 +188,7 @@ def estimate_motion(
 def cluster_motion(c, evs, speed_kmh: dict[str, float]):
     """Motion estimate for a cluster row from its events (any order)."""
     fixes = []
-    for e in evs:
-        if e["lat"] is None:
-            continue
+    for e in flyable(evs, c["threat_type"], speed_kmh):
         try:
             alt = e["altitude_m"] if "altitude_m" in e.keys() else None
             fixes.append(Fix(dtp.isoparse(e["posted_at"]), e["lat"], e["lon"], alt))
@@ -309,3 +307,93 @@ def assess(m: Motion, ref: tuple[float, float], now: datetime,
         "level": "low" if over else _level(dist, toward, eta, m.moving, dist / v,
                                            m.descending, receding, m.family),
     }
+
+
+# ---------------------------------------------------------------- life
+# A threat is alive only while someone keeps reporting it: a drone can't sit
+# still, so a track nobody has mentioned for a while is somewhere else by now
+# (or down). Its last spot then only misleads - the "ghost" left on the map
+# when one drone stops being reported and the next one shows up from the same
+# place. Minutes without a report after which a track is gone, per family:
+LIFE_MIN = {
+    "drone": 25.0,       # Shahed ~170 km/h: 70 km off its last fix by then
+    "cruise": 90.0,      # matches the launch-area hold (geo/launch.py)
+    "ballistic": 45.0,
+    "bomb": 15.0,        # a KAB glides for minutes, not hours
+    "aircraft": 60.0,
+    "unknown": 25.0,     # an untyped sighting is in practice a drone
+}
+
+
+def threat_life(family: str, status: str, age_min: float | None) -> float:
+    """How alive a track still is: 1.0 just reported, falling to 0.0 when it's
+    gone (the map fades it by this and drops it at 0).
+
+    ``family`` is a key of LIFE_MIN, ``status`` the track's status
+    (moving / circling / descending / impact / clear / launch / unknown),
+    ``age_min`` minutes since its last report (None: unknown -> alive)."""
+    if age_min is None:
+        return 1.0
+    if status in ("impact", "clear"):
+        life = 5.0                           # it's over: fade out so you see it end
+    else:
+        life = LIFE_MIN.get(family, LIFE_MIN["unknown"])
+        if status == "circling":
+            life *= 1.5                      # the one case it does stay put
+    hold = 0.4 * life                        # "still around, just not reported"
+    if age_min <= hold:
+        return 1.0
+    return max(0.0, 1.0 - (age_min - hold) / (life - hold))
+
+
+# A merged track gets fixes from several channels, each naming the nearest
+# town it knows, posted with a few minutes' lag. Drawn in posting order, one
+# channel's "Бровари" between two "Троєщина" fixes was a 20 km jump there and
+# back in two minutes - not something a Shahed does. A fix is plausible when
+# the object could have flown there from the neighbouring kept fix in the time
+# between them: speed x elapsed, plus a floor for town-centre / posting slack.
+FIX_FLOOR_KM = 12.0
+
+
+def reach_kmh(slug: str, speed_kmh: dict[str, float] | None = None) -> float:
+    """Fastest this type plausibly covers ground (as dedupe judges it)."""
+    cruise = (speed_kmh or {}).get(slug) or SPEED_KMH.get(slug, 200.0)
+    return max(cruise * 1.25, MAX_SPEED_KMH.get(slug, 0.0))
+
+
+def plausible_path(pts: list[tuple[datetime, float, float]], reach: float,
+                   floor_km: float = FIX_FLOOR_KM) -> list[int]:
+    """Indices (ascending) of the fixes in ``pts`` - (time, lat, lon), oldest
+    first - that form a physically flyable path for something no faster
+    than ``reach`` km/h. The rest are outliers: kept in the feed, not drawn."""
+    if len(pts) < 2:
+        return list(range(len(pts)))
+
+    def ok(a, b) -> bool:
+        hours = abs((b[0] - a[0]).total_seconds()) / 3600.0
+        return haversine_km((a[1], a[2]), (b[1], b[2])) <= floor_km + reach * hours
+
+    # newest first: the latest report is where it is now, so it anchors the
+    # path; an older fix stays only if it could have flown on to the next kept
+    kept = [len(pts) - 1]
+    for i in range(len(pts) - 2, -1, -1):
+        if ok(pts[i], pts[kept[-1]]):
+            kept.append(i)
+    return kept[::-1]
+
+
+def flyable(evs, slug: str, speed_kmh: dict[str, float] | None = None) -> list:
+    """``evs`` (any order) -> the ones with a position on a flyable path,
+    oldest first."""
+    timed = []
+    for e in evs:
+        if e["lat"] is None:
+            continue
+        try:
+            timed.append((dtp.isoparse(e["posted_at"]), e))
+        except (TypeError, ValueError):
+            continue
+    timed.sort(key=lambda te: te[0])
+    keep = plausible_path([(t, e["lat"], e["lon"]) for t, e in timed],
+                          reach_kmh(slug, speed_kmh))
+    return [timed[i][1] for i in keep]

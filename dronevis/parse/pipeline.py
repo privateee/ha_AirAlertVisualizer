@@ -39,7 +39,13 @@ _SUMMARY_RX = re.compile(
     r"|\b(усього|всього|загалом)\s+(збит|знищен|сбит|уничтожен|випуст|запуст)"
     r"|\b(збит|знищен|сбит|уничтожен)\w*\s+\d{2,}"
     r"|\bповитрян\w*\s+тривог\w*\s*$"
-    r"|\bвидбий\s+тривог"
+    r"|\bвидбий\s+(?:повитрян\w*\s+)?тривог"
+    # siren status per district (horizon_of_war): "🟡 Ніжинський район —
+    # повітряна тривога, жовтий рівень: Дронова загроза" - an alert level,
+    # not a sighting (it became a drone on the district's town)
+    r"|\bрайон\w*\s+повитрян\w*\s+тривог|\bжовт\w*\s+ривен"
+    # "ППО збили/подавили 119 повітряних цілей" - the night's tally
+    r"|\d{2,}\s+повитрян\w*\s+цил"
     r"|\bдовидков|\bинфографик|\bстатистик",
     re.I,
 )
@@ -111,6 +117,12 @@ _NEWS_RX = re.compile(
     r"|напруг",                     # "Напруга зараз місцями по Києву" - power is back
 )
 _TRACK_LINE_RX = re.compile(r"бпла|реактив|шахед|мопед|курс\w*\s+на")
+
+
+# A news channel's own signature line, which it puts under its news posts but
+# not under its short tracking ones ("🔴 Київ Головне"). kievreal1 signs both
+# alike ("Надіслати новину @bot"), so this is per channel.
+NEWS_SIGNATURE = {"kyiv_golovne": "київ головне"}
 
 
 def is_news(text: str, folded: str) -> bool:
@@ -222,6 +234,9 @@ class Parser:
         # footers ("Надіслати новину @bot / 👉ПІДПИСАТИСЯ"), promo links and
         # siren on/off lines carry no report - and "новину" matched the
         # village "Нове", "Слідкувати за БПЛА" became a drone
+        sig = NEWS_SIGNATURE.get(channel or "")
+        if sig and sig in (text or "").lower():
+            return []                       # a signed news post
         text = strip_boilerplate(text)
         if not text:
             return []

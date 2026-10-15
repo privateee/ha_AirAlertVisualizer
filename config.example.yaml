@@ -180,7 +180,9 @@ parse:
   min_confidence: 0.0         # drop events below this parse_confidence
   # City news channels that mix drone tracking with news, aftermath and ads:
   # only their short tracking posts are read (bare places count too).
-  news_channels: [kievreal1]
+  news_channels: [kievreal1, kyiv_golovne]
+  # Channels posting bare place names ("Оболонь / Теличка") as sightings.
+  terse_channels: [AerisRimor, eradarrua]
   llm:
     enabled: false            # rules-only by default (Raspberry-Pi friendly)
     provider: none            # none | ollama | openai_compatible

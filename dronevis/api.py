@@ -31,7 +31,7 @@ from .geo.util import compass, haversine_km
 from .ha import HAPublisher, cap_region_level, compute_state
 from .log import get_logger, setup_logging
 from .parse.threats import ALL_SLUGS, COLOR, FAMILY, LABEL, SHORT, SPEED_KMH
-from .predict import assess, cluster_motion, cone, dead_reckon
+from .predict import assess, cluster_motion, cone, dead_reckon, flyable, threat_life
 from .service import Service
 
 log = get_logger("api")
@@ -596,9 +596,8 @@ def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
     # track at track[i] (so a leg i -> i+1 can say which report drew it)
     track: list[list[float]] = []
     track_src: list[dict] = []
-    for e in reversed(evs):
-        if e["lat"] is None:
-            continue
+    # only fixes it could have flown between (predict.plausible_path)
+    for e in flyable(evs, c["threat_type"], speed_kmh or SPEED_KMH):
         pt = [round(e["lat"], 4), round(e["lon"], 4)]
         if not track or track[-1] != pt:
             track.append(pt)
@@ -635,6 +634,9 @@ def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
         "first_posted_at": c["first_posted_at"],
         "last_posted_at": last,
         "age_minutes": age_min,
+        # 1 just reported -> 0 gone: the map fades the track by it (predict.py)
+        "life": round(threat_life(FAMILY.get(c["threat_type"], "unknown"),
+                                  c["status"], age_min), 3),
         "lat": c["centroid_lat"],
         "lon": c["centroid_lon"],
         "place_name": c["place_name"],

@@ -135,6 +135,13 @@ class LLMConfig:
     only_on_gap: bool = True
 
 
+# Built-in channel styles (the add-on has no option for these): bare place
+# names count as sightings on terse channels; news channels are terse too,
+# but their news / aftermath / ads posts are skipped.
+TERSE_CHANNELS = ("AerisRimor", "eradarrua")
+NEWS_CHANNELS = ("kievreal1", "kyiv_golovne")
+
+
 @dataclass(slots=True)
 class ParseConfig:
     languages: list[str] = field(default_factory=lambda: ["uk", "ru"])
@@ -142,10 +149,10 @@ class ParseConfig:
     # Channels that post bare toponyms with no threat word ("Соф борщага на
     # Вишневе."). For these, a line that names a place but no threat is still
     # treated as an (unidentified) air threat.
-    terse_channels: list[str] = field(default_factory=lambda: ["AerisRimor"])
+    terse_channels: list[str] = field(default_factory=lambda: list(TERSE_CHANNELS))
     # City news channels that mix drone tracking with news, aftermath and
     # ads (kievreal1). Only short tracking posts are read; they're also terse.
-    news_channels: list[str] = field(default_factory=lambda: ["kievreal1"])
+    news_channels: list[str] = field(default_factory=lambda: list(NEWS_CHANNELS))
     llm: LLMConfig = field(default_factory=LLMConfig)
 
 
@@ -326,8 +333,8 @@ def load_config(path: str | os.PathLike | None = None) -> Config:
     parse = ParseConfig(
         languages=list(pr.get("languages", ["uk", "ru"])),
         min_confidence=float(pr.get("min_confidence", 0.0)),
-        terse_channels=channel_names(pr.get("terse_channels", ["AerisRimor"])),
-        news_channels=channel_names(pr.get("news_channels", ["kievreal1"])),
+        terse_channels=channel_names(pr.get("terse_channels", TERSE_CHANNELS)),
+        news_channels=channel_names(pr.get("news_channels", NEWS_CHANNELS)),
         llm=llm,
     )
 

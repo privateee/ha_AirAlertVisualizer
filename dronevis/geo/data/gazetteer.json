@@ -19556,6 +19556,296 @@
         "правобережжя",
         "правый берег"
       ]
+    },
+    {
+      "name": "Сеньківка (Чернігівська)",
+      "lat": 52.089,
+      "lon": 31.7804,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "сеньківка",
+        "сеньковка"
+      ]
+    },
+    {
+      "name": "Неданчичі",
+      "lat": 51.5238,
+      "lon": 30.6277,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "неданчичи"
+      ]
+    },
+    {
+      "name": "Снов'янка",
+      "lat": 51.56,
+      "lon": 31.569,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "сновянка",
+        "снов’янка"
+      ]
+    },
+    {
+      "name": "Пакуль",
+      "lat": 51.408,
+      "lon": 30.803,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Вересоч",
+      "lat": 51.3128,
+      "lon": 31.7862,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "вересочь"
+      ]
+    },
+    {
+      "name": "Воловики",
+      "lat": 51.668,
+      "lon": 32.09,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Дрімайлівка",
+      "lat": 51.27,
+      "lon": 31.851,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "дримайловка"
+      ]
+    },
+    {
+      "name": "Смолянка (Чернігівська)",
+      "lat": 51.248,
+      "lon": 31.458,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "смолянка"
+      ]
+    },
+    {
+      "name": "Стодоли",
+      "lat": 51.199,
+      "lon": 31.602,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Хотуничі",
+      "lat": 51.887,
+      "lon": 31.774,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "хотуничи"
+      ]
+    },
+    {
+      "name": "Товкачівка",
+      "lat": 50.656,
+      "lon": 32.259,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "толкачевка"
+      ]
+    },
+    {
+      "name": "Оленівка (Чернігівська)",
+      "lat": 51.25,
+      "lon": 32.305,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "оленівка"
+      ]
+    },
+    {
+      "name": "Лихачів",
+      "lat": 51.134,
+      "lon": 31.512,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "лихачев"
+      ]
+    },
+    {
+      "name": "Бирине",
+      "lat": 52.086,
+      "lon": 33.384,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Вертіївка",
+      "lat": 51.1655,
+      "lon": 31.8596,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 3,
+      "aliases": [
+        "вертиевка"
+      ]
+    },
+    {
+      "name": "Салтикова Дівиця",
+      "lat": 51.3983,
+      "lon": 31.7991,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "салтыкова девица"
+      ]
+    },
+    {
+      "name": "Гвоздиківка",
+      "lat": 51.8406,
+      "lon": 31.9075,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Нові Боровичі",
+      "lat": 51.9347,
+      "lon": 31.8647,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "новые боровичи"
+      ]
+    },
+    {
+      "name": "Старі Боровичі",
+      "lat": 51.8849,
+      "lon": 31.8596,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "старые боровичи"
+      ]
+    },
+    {
+      "name": "Гірськ",
+      "lat": 52.0241,
+      "lon": 31.8542,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "горск"
+      ]
+    },
+    {
+      "name": "Лошакова Гута",
+      "lat": 51.0307,
+      "lon": 30.6555,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Морівськ",
+      "lat": 51.0846,
+      "lon": 30.8784,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "моровск"
+      ]
+    },
+    {
+      "name": "Кукшин",
+      "lat": 51.1704,
+      "lon": 31.6534,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Горбове",
+      "lat": 51.4638,
+      "lon": 31.5642,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Берестовець",
+      "lat": 51.252,
+      "lon": 32.2192,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Дніпровське (Чернігівська)",
+      "lat": 51.3523,
+      "lon": 30.6849,
+      "kind": "village",
+      "obl": "chernihiv",
+      "rank": 2,
+      "aliases": [
+        "дніпровське"
+      ]
+    },
+    {
+      "name": "Рожни",
+      "lat": 50.6669,
+      "lon": 30.735,
+      "kind": "village",
+      "obl": "kyiv_o",
+      "rank": 2,
+      "aliases": []
+    },
+    {
+      "name": "Гореничі",
+      "lat": 50.4147,
+      "lon": 30.2059,
+      "kind": "village",
+      "obl": "kyiv_o",
+      "rank": 2,
+      "aliases": [
+        "горенычи"
+      ]
     }
   ]
 }

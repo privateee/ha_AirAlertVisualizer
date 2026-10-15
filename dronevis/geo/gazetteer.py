@@ -152,6 +152,9 @@ def _key_neighbours() -> dict[str, set[str]]:
 
 _NEIGHBOURS = _key_neighbours()
 _CAP_WORD_RE = re.compile(r"(?<![А-Яа-яЁёІіЇїЄєҐґ'’ʼ])[А-ЯЁІЇЄҐЬ][а-яёіїєґь'’ʼ]{4,}")
+# adjective / surname endings - "Зеленський", "Бучанський" - are never a
+# misspelt village ("Зеленський" became Зелене in Kherson oblast)
+_ADJ_END_RE = re.compile(r"[сц]ь?к(?:ий|ого|ому|им|ій|а|ої|у|е|і|их)$")
 
 
 def _typo_variants(word: str) -> set[str]:
@@ -415,7 +418,7 @@ class Gazetteer:
         typo that folding would erase). Only accepted when every plausible
         reading points to the same place, near the area when one is given."""
         word = word.lower()
-        if len(word) < 5:
+        if len(word) < 5 or _ADJ_END_RE.search(word):
             return None
         found: dict[str, Place] = {}
         for v in _typo_variants(word):

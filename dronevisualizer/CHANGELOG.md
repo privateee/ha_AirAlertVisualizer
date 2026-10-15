@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.8
+
+New channels (eradarrua, kyiv_golovne, horizon_of_war_official) parsed
+properly; tracks fade out when no longer reported; tracks are drawn only
+through positions a drone could actually have flown between.
+
 ## 1.1.7
 
 Map: off-screen markers for a missile's launch area / target now sit where

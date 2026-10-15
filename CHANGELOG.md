@@ -2,6 +2,27 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.8 — 2026-10-15
+
+- **New channels parsed properly.** eradarrua is read as terse (a bare
+  district name is a sighting); kyiv_golovne is a news channel whose news
+  posts (signed "Київ Головне") are skipped; horizon_of_war_official's
+  district siren-status posts no longer become drones. chyste_nebo has its
+  web preview disabled and can't be read via t.me/s.
+- **Parsing.** "Герань-5" is the jet UAV, "ударний" a Shahed; a surname
+  ("Зеленський") is no longer typo-matched to a village; 28 Chernihiv /
+  Kyiv-oblast villages added; "на Добрянку /Любеч /…" is one forward route;
+  a short reply "Здох" / "Впала" / "По ньому все" ends the quoted drone.
+- **Tracks fade out.** Each track has a "life": full strength for a while
+  after its last report, then fading, gone after ~25 min for a drone (longer
+  for circling ones, cruise missiles, aircraft) - no more ghosts sitting on
+  the last spot.
+- **Tracks are physically flyable.** A track is drawn (and its heading /
+  speed estimated) only through fixes the object could have flown between:
+  speed x time plus 12 km for town-centre / posting slack, anchored on the
+  newest report. Another channel's off-route fix stays in the feed but no
+  longer draws a jump there and back.
+
 ## 1.1.7 — 2026-10-11
 
 - **Map: edge marks sit on their trajectory.** The mark for an off-screen

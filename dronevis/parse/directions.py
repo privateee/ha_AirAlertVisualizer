@@ -15,6 +15,7 @@ from ..geo.gazetteer import PlaceHit
 from ..geo.util import bearing_deg
 
 _WINDOW = 26  # chars of context before a toponym we inspect for a preposition
+_SLASH_ONLY_RE = re.compile(r"\s*/\s*")   # "Добрянку / Любеч": just a list separator
 
 # role -> ordered regexes matched in the pre-toponym window (closest wins)
 _MARKERS: list[tuple[str, list[re.Pattern]]] = [
@@ -195,6 +196,16 @@ def _role_for(folded_line: str, hit: PlaceHit) -> str:
 
 def analyze(folded_line: str, hits: list[PlaceHit]) -> DirectionResult:
     roles = [(h, _role_for(folded_line, h)) for h in hits]
+    # "на Добрянку / Любеч / Неданчичі" (horizon_of_war): a route - a place
+    # listed after "/" shares the role of the one before it. It used to be
+    # "near" (= where it is now), so the route read backwards: at Любеч,
+    # heading for Добрянка.
+    roles.sort(key=lambda hr: hr[0].start)
+    for i in range(1, len(roles)):
+        (prev, prole), (h, role) = roles[i - 1], roles[i]
+        if (role == "near" and prole in ("dest", "transit")
+                and _SLASH_ONLY_RE.fullmatch(folded_line[prev.end:h.start])):
+            roles[i] = (h, "dest" if prole == "dest" else "transit")
 
     dests = [h for h, r in roles if r == "dest"]
     src = next((h for h, r in roles if r == "src"), None)
