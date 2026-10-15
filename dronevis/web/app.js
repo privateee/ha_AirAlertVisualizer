@@ -393,6 +393,9 @@ async function init() {
     // history-slider step) rebuilds all layers, which was slow on phones
     map = L.map("map", { zoomControl: true, preferCanvas: true })
       .setView(center, a.radius_km && a.radius_km < 150 ? 8 : 6);
+    // the tile credits are required; Leaflet's own "🇺🇦 Leaflet |" is not, and
+    // made the line wrap on a phone
+    map.attributionControl.setPrefix(false);
     const home = savedView();
     if (home) map.setView([home.lat, home.lon], home.z, { animate: false });
     addViewControl();

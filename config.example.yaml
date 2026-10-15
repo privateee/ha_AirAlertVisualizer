@@ -217,12 +217,12 @@ server:
   # (or point these at any other tile provider / a local tile server / an
   # MBTiles proxy when running fully offline on a Pi.)
   tile_url: "https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=YOUR_STADIA_API_KEY"
-  tile_attribution: '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap contributors</a>'
+  tile_attribution: '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap</a>'
   # Night mode uses Stadia's own dark style by default. Leave tile_url_dark
   # empty instead to just CSS-invert the day tiles (no second CDN, works
   # offline, grey/black map with light labels).
   tile_url_dark: "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=YOUR_STADIA_API_KEY"
-  tile_attribution_dark: '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap contributors</a>'
+  tile_attribution_dark: '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap</a>'
   map_theme: dark            # dark | light  (the ☀/🌙 button overrides per browser)
 
 # ---------------------------------------------------------------------------

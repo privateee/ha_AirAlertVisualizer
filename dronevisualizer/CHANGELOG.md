@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.11
+
+One drone circling the city is one track, not a ring per district: bare
+positions continue drone tracks when physically reachable. "на Вінничині"
+is recognised. Shorter map credit line on phones, sitting on the feed.
+
 ## 1.1.10
 
 "Курськ ракета" is a ballistic missile (~5 min to Kyiv), not a 42-minute

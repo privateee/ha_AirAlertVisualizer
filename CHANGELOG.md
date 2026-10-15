@@ -2,6 +2,26 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.11 — 2026-10-15
+
+- **One drone over the city is one track.** A bare position from a terse
+  channel ("Оболонь", "Рожни реактив.") used to start a new track unless it
+  named the very same place - one drone circling Kyiv left a ring per
+  district. Untyped sightings now continue drone tracks (a track begun by
+  them takes the type once a channel names it); they chain by distance and
+  time like any drone report; and a bare new position from a channel already
+  on a track is that channel's drone moving on, even after others joined.
+- **Every merge is physically flyable.** A report joins a track only if the
+  object could have got there since its last fix (faster type's speed x
+  elapsed + 12 km slack) - also inside the 20 km "close by" radius, where
+  18 km in one minute used to count as one Shahed.
+- **"на Вінничині" with one "ч"** (kpszsu's spelling; also Хмельничина,
+  Кропивничина, Донечина) is recognised as the region, so its homonyms
+  ("Калинівка") resolve there and not near Kyiv.
+- **Map: shorter credit line on phones**, sitting on the feed sheet: no
+  "Leaflet" prefix, "© OpenStreetMap", smaller text; it no longer floats
+  58 px above the sheet for the hidden history slider.
+
 ## 1.1.10 — 2026-10-15
 
 - **An untyped missile from a launch area is ballistic.** "Курськ ракета" /

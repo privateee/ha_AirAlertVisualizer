@@ -163,9 +163,14 @@ body:not(.is-desktop) #freshness {
   backdrop-filter: blur(3px);
 }
 #scrub { flex: 1; accent-color: var(--accent); }
-/* phone: the sheet covers the bottom of the map, so the attribution moves up
-   above the history slider instead of hiding behind the sheet */
-body:not(.is-desktop) .leaflet-bottom { bottom: calc(var(--sheet-peek) + var(--safe-b) + 58px); }
+/* phone: the sheet covers the bottom of the map, so the attribution sits on
+   top of the peeking sheet instead of hiding behind it (it used to float
+   58px higher, clearing the history slider - which is hidden now) */
+body:not(.is-desktop) .leaflet-bottom { bottom: calc(var(--sheet-peek) + var(--safe-b)); }
+body:not(.is-desktop) .leaflet-control-attribution { font-size: 9px; line-height: 1.5; }
+body:not(.is-desktop):has(#scrubWrap:not([hidden])) .leaflet-bottom {
+  bottom: calc(var(--sheet-peek) + var(--safe-b) + 58px);
+}
 #scrubLabel { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 96px; text-align: right; }
 
 /* ============================================================ feed / bottom sheet */

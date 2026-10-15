@@ -26,6 +26,7 @@ from .geo.launch import site_at
 from .geo.util import bearing_deg, haversine_km
 from .parse.pipeline import ParsedEvent
 from .parse.threats import FAMILY, MAX_SPEED_KMH
+from .predict import FIX_FLOOR_KM
 
 MISSILE_FAMILIES = ("ballistic", "cruise")
 MISSILE_UPDATE_S = 15 * 60       # a channel's follow-up on its missile, within this
@@ -35,6 +36,14 @@ REPLY_FLOOR_KM = 30.0            # a reply's place may be this far off whatever 
 
 def _dt(iso: str) -> datetime:
     return dtparse.isoparse(iso)
+
+
+def _same_kind(a: str, b: str) -> bool:
+    """Families that can be one object. An untyped sighting ("Оболонь",
+    "Рожни реактив." from a terse channel) is in practice a drone, so it may
+    continue a drone track - it used to start a track of its own every time,
+    leaving a ring per district for one drone circling the city."""
+    return a == b or {a, b} == {"drone", "unknown"}
 
 
 def _angdiff(a: float, b: float) -> float:
@@ -104,7 +113,8 @@ class Deduper:
         for c in self.db.open_clusters(since):
             if c["resolved_at"] is not None:
                 continue
-            if self.cfg.incompatible_split and FAMILY.get(c["threat_type"]) != family:
+            if self.cfg.incompatible_split and not _same_kind(
+                    FAMILY.get(c["threat_type"], "unknown"), family):
                 continue
             gap = abs((now - _dt(c["last_posted_at"])).total_seconds())
             if gap > window.total_seconds():
@@ -233,7 +243,12 @@ class Deduper:
 
     def _score(self, ev: ParsedEvent, c, family: str, channel: str, gap_min: float) -> float:
         c_count = c["count"] if "count" in c.keys() else None
-        single_source = json.loads(c["channels"]) == [channel]
+        chans = json.loads(c["channels"])
+        # one reporter following its own object. A bare new position with no
+        # threat named ("Нивки", "Рожни реактив.") from a channel already on
+        # this track is that channel's drone moving on, even after others joined
+        single_source = chans == [channel] or (
+            channel in chans and FAMILY.get(ev.threat_type, "unknown") == "unknown")
         count_match = self._count_match(ev.count, c_count)
         count_conflict = self._count_conflict(ev.count, c_count)
 
@@ -247,17 +262,13 @@ class Deduper:
         if ev.place_name and c["place_name"] and ev.place_name == c["place_name"]:
             return 0.80 if count_conflict else 0.95
 
-        if family == "unknown":
-            # terse "unknown" spottings carry little identity; only chain them
-            # when the group size matches and it is the same single reporter
-            if single_source and count_match and ev.lat is not None and c["centroid_lat"] is not None:
-                return self._trajectory_score(
-                    ev, c, gap_min, single_source, count_match, count_conflict
-                )
-            return 0.0
-
         if ev.lat is not None and c["centroid_lat"] is not None:
             d = haversine_km((ev.lat, ev.lon), (c["centroid_lat"], c["centroid_lon"]))
+            # whatever else matches, it must have been able to fly here from
+            # the track's last fix since then (+ town-centre / posting slack)
+            speed = max(self._reach_kmh(ev.threat_type), self._reach_kmh(c["threat_type"]))
+            if d > FIX_FLOOR_KM + speed * gap_min / 60.0:
+                return 0.0
             # A report that states its own direction ("з Чернігівщини на
             # Вишгородський район", coming from the north) is a different drone
             # than a track flying another way ("повз Переяслав курсом на Київ",
@@ -328,7 +339,10 @@ class Deduper:
         #    (~330 km) fails this for anything slower than a ballistic missile.
         if d > self.cfg.max_hop_km:
             return 0.0
-        reach = self._reach_kmh(ev.threat_type) * (gap_min / 60.0)
+        # the faster of the two: a bare sighting continuing a jet track moves
+        # at jet speed
+        reach = (max(self._reach_kmh(ev.threat_type), self._reach_kmh(c["threat_type"]))
+                 * (gap_min / 60.0))
         reach = min(max(reach, self.cfg.distance_km), self.cfg.max_hop_km)
         if d > reach:
             return 0.0
@@ -400,6 +414,10 @@ class Deduper:
             "event_count": int(c["event_count"]) + 1,
             "channels": json.dumps(sorted(channels), ensure_ascii=False),
         }
+
+        # a track begun by bare sightings takes the type once a channel names it
+        if c["threat_type"] == "unknown" and ev.threat_type not in ("unknown", "clear"):
+            patch["threat_type"] = ev.threat_type
 
         # peak group size ever reported
         cmax = max((x for x in (c["count_max"], c["count"], ev.count) if x is not None),

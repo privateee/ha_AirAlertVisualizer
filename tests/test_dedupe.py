@@ -86,15 +86,72 @@ def test_time_gap_splits(db, deduper):
     assert c1 != c2
 
 
-def test_unknown_only_merges_on_exact_place(db, deduper):
+def test_unknown_sightings_nearby_are_one_track(db, deduper):
+    # bare district names from terse channels (no count): one drone moving
+    # about, not a new track per district
     t0 = datetime(2026, 8, 30, 10, 0, tzinfo=timezone.utc)
     c1 = _store(db, deduper, _raw(db, "a", 1, t0.isoformat()),
-                _ev(threat_type="unknown", place_name="Ірпінь", lat=50.52, lon=30.25),
-                "a", t0.isoformat())
-    # nearby but different name -> stays separate
+                _ev(threat_type="unknown", count=None, place_name="Ірпінь",
+                    lat=50.52, lon=30.25), "a", t0.isoformat())
     c2 = _store(db, deduper, _raw(db, "b", 2, (t0 + timedelta(minutes=3)).isoformat()),
-                _ev(threat_type="unknown", place_name="Буча", lat=50.54, lon=30.21),
-                "b", (t0 + timedelta(minutes=3)).isoformat())
+                _ev(threat_type="unknown", count=None, place_name="Буча",
+                    lat=50.54, lon=30.21), "b", (t0 + timedelta(minutes=3)).isoformat())
+    assert c1 == c2
+
+
+def test_unknown_sighting_joins_a_drone_track_and_it_keeps_the_type(db, deduper):
+    t0 = datetime(2026, 8, 30, 14, 0, tzinfo=timezone.utc)
+    t1 = t0 + timedelta(minutes=2)
+    c1 = _store(db, deduper, _raw(db, "kpszsu", 1, t0.isoformat()),
+                _ev(threat_type="jet_uav", count=None, place_name="Жуляни",
+                    lat=50.40, lon=30.45), "kpszsu", t0.isoformat())
+    c2 = _store(db, deduper, _raw(db, "AerisRimor", 2, t1.isoformat()),
+                _ev(threat_type="unknown", count=None, place_name="Борщагівка",
+                    lat=50.43, lon=30.36), "AerisRimor", t1.isoformat())
+    assert c1 == c2
+    assert db.query_one("SELECT threat_type FROM cluster WHERE id=?", (c1,))[0] == "jet_uav"
+
+
+def test_unknown_track_takes_the_type_once_named(db, deduper):
+    t0 = datetime(2026, 8, 30, 14, 0, tzinfo=timezone.utc)
+    t1 = t0 + timedelta(minutes=2)
+    c1 = _store(db, deduper, _raw(db, "eradarrua", 1, t0.isoformat()),
+                _ev(threat_type="unknown", count=None, place_name="Теличка",
+                    lat=50.42, lon=30.56), "eradarrua", t0.isoformat())
+    c2 = _store(db, deduper, _raw(db, "kpszsu", 2, t1.isoformat()),
+                _ev(threat_type="shahed", count=None, place_name="Теличка",
+                    lat=50.42, lon=30.56), "kpszsu", t1.isoformat())
+    assert c1 == c2
+    assert db.query_one("SELECT threat_type FROM cluster WHERE id=?", (c1,))[0] == "shahed"
+
+
+def test_bare_position_from_a_channel_on_the_track_continues_it(db, deduper):
+    # eradarrua and kpszsu both on the track; eradarrua then posts just a new
+    # place ~27 km on, no threat named, no direction: its drone moved on
+    t0 = datetime(2026, 8, 30, 14, 0, tzinfo=timezone.utc)
+    c1 = _store(db, deduper, _raw(db, "eradarrua", 1, t0.isoformat()),
+                _ev(threat_type="unknown", count=None, place_name="Вишневе",
+                    lat=50.39, lon=30.36), "eradarrua", t0.isoformat())
+    t1 = t0 + timedelta(minutes=1)
+    _store(db, deduper, _raw(db, "kpszsu", 2, t1.isoformat()),
+           _ev(threat_type="jet_uav", count=None, place_name="Вишневе",
+               lat=50.39, lon=30.36), "kpszsu", t1.isoformat())
+    t2 = t0 + timedelta(minutes=6)
+    c3 = _store(db, deduper, _raw(db, "eradarrua", 3, t2.isoformat()),
+                _ev(threat_type="unknown", count=None, place_name="Рожни",
+                    lat=50.62, lon=30.47), "eradarrua", t2.isoformat())
+    assert c3 == c1
+
+
+def test_nearby_but_out_of_reach_stays_separate(db, deduper):
+    # 18 km in one minute: inside the 20 km "close by" radius, but no Shahed
+    # flies that (12 km slack + ~4 km in a minute)
+    t0 = datetime(2026, 8, 30, 10, 0, tzinfo=timezone.utc)
+    c1 = _store(db, deduper, _raw(db, "a", 1, t0.isoformat()),
+                _ev(count=None, place_name="Ірпінь", lat=50.52, lon=30.25), "a", t0.isoformat())
+    c2 = _store(db, deduper, _raw(db, "b", 2, (t0 + timedelta(minutes=1)).isoformat()),
+                _ev(count=None, place_name="Жуляни", lat=50.40, lon=30.42), "b",
+                (t0 + timedelta(minutes=1)).isoformat())
     assert c1 != c2
 
 

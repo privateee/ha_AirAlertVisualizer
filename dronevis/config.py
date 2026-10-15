@@ -175,7 +175,7 @@ class ServerConfig:
     tile_attribution: str = (
         '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> '
         '&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> '
-        '&copy; <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap contributors</a>'
+        '&copy; <a href="https://www.openstreetmap.org/about" target="_blank">OpenStreetMap</a>'
     )
     tile_url_dark: str = (
         "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png"

@@ -126,3 +126,12 @@ def test_bare_reservoir_with_nothing_near_is_nowhere(parser):
 ])
 def test_untyped_missile_from_a_launch_area(parser, text, want):
     assert parser.parse(text, channel="eradarrua")[0].threat_type == want
+
+
+@pytest.mark.parametrize("region", ["Вінничині", "Вінниччині"])
+def test_one_ch_region_spelling_steers_the_homonym(parser, region):
+    # kpszsu writes "Вінничині"; only "Вінниччина" was known, so Калинівка
+    # went to the Kyiv-oblast one
+    ev = parser.parse(f"Реактивний БпЛА на {region}, між н.п.Калинівка та Стрижавка",
+                      channel="kpszsu", area_center=(50.45, 30.52))[0]
+    assert ev.place_name == "Калинівка (Вінницька)"
