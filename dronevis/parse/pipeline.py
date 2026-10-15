@@ -17,6 +17,7 @@ import re
 
 from ..config import Config
 from ..geo.gazetteer import Gazetteer, PlaceHit
+from ..geo.launch import site_at
 from ..geo.util import bearing_deg, compass, dest_point, haversine_km
 from ..log import get_logger
 from .directions import analyze, is_clear
@@ -489,6 +490,16 @@ class Parser:
             events.append(ev)
 
         events = _dedup_within_post(events)
+
+        # "Курськ ракета" / "Ракета з Брянська": an untyped missile from a
+        # ground launch area is an Iskander / KN-23, not a 750 km/h cruise
+        # missile - it was timed at ~42 min to Kyiv for a ~5 min flight.
+        # Named cruise types ("крилата", "Х-59") are left alone.
+        for ev in events:
+            if (ev.threat_type == "cruise_missile"
+                    and fold(ev.threat_raw or "").startswith("ракет")
+                    and site_at(ev.lat, ev.lon) is not None):
+                ev.threat_type = "ballistic"
 
         if self._llm is not None and self._llm.should_run(text, events):
             try:

@@ -2,6 +2,14 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.10 — 2026-10-15
+
+- **An untyped missile from a launch area is ballistic.** "Курськ ракета" /
+  "Ракета з Брянська" was a 750 km/h cruise missile - timed at ~42 min to
+  Kyiv for what is a ~5 min Iskander / KN-23 flight. A bare "ракета" placed
+  at Kursk / Bryansk / Belgorod / Voronezh / Crimea is now ballistic (colour,
+  timing, fade, danger); named cruise types ("крилата", "Х-59") stay cruise.
+
 ## 1.1.9 — 2026-10-15
 
 - **A bare "водосховище" is the nearby reservoir.** It was always the Kyiv

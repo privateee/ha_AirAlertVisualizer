@@ -116,3 +116,13 @@ def test_bare_reservoir_with_nothing_near_is_nowhere(parser):
     assert all(e.place_name is None or "водосховище" not in e.place_name for e in evs)
     evs = parser.parse("Шахед над водосховищем", channel="kpszsu", area_center=(50.45, 30.52))
     assert evs[0].place_name == "Київське водосховище"
+
+
+# -- an untyped "ракета" from a launch area is ballistic (minutes, not 40) ---
+@pytest.mark.parametrize("text, want", [
+    ("Курськ ракета", "ballistic"), ("Ракета з Брянська", "ballistic"),
+    ("Курськ Х-59", "cruise_missile"), ("Крилата ракета з Курська", "cruise_missile"),
+    ("Ракета на Київ", "cruise_missile"),
+])
+def test_untyped_missile_from_a_launch_area(parser, text, want):
+    assert parser.parse(text, channel="eradarrua")[0].threat_type == want

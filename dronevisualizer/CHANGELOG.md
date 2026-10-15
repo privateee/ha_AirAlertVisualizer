@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.10
+
+"Курськ ракета" is a ballistic missile (~5 min to Kyiv), not a 42-minute
+cruise missile.
+
 ## 1.1.9
 
 A bare "водосховище" is the reservoir near the rest of the post, not always
