@@ -60,11 +60,14 @@ COLOR = {r[0]: r[2] for r in _TAXONOMY}
 LABEL = {r[0]: r[3] for r in _TAXONOMY}
 SHORT = {r[0]: r[4] for r in _TAXONOMY}
 SPEED_KMH = {r[0]: float(r[5]) for r in _TAXONOMY}
-# Top speed, where it's well above the usual cruise: jet UAVs mostly fly
-# 400-600 km/h but dash at up to ~900. Used to judge whether one object could
-# have covered a distance (dedupe) and how fast an observed track may really
+# Top speed, where it's well above the usual cruise: a Shahed cruises ~170
+# but goes up to ~300 km/h (diving, tail wind, the newer ones); jet UAVs
+# mostly fly 400-600 and dash at up to ~900. An untyped sighting is in
+# practice a drone. Used to judge whether one object could have covered a
+# distance (dedupe, the drawn path) and how fast an observed track may really
 # be going (predict); ETAs without an observed speed still use SPEED_KMH.
-MAX_SPEED_KMH = {"jet_uav": 900.0}
+MAX_SPEED_KMH = {"shahed": 300.0, "recon_uav": 300.0, "unknown": 300.0,
+                 "jet_uav": 900.0}
 ALL_SLUGS = [r[0] for r in _TAXONOMY]
 
 # pseudo-slug: "all clear" markers (not a filterable threat type)

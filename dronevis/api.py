@@ -360,7 +360,7 @@ def create_app(cfg: Config | None = None):
             out.append(_cluster_dto(c, evs, speed_kmh=cfg.dedupe.speed_kmh,
                                     ref=ref_pt, now=now,
                                     max_age_min=cfg.alarm.active_minutes,
-                                    coarse_places=coarse_places))
+                                    coarse_places=coarse_places, since=t0))
             out[-1]["missile"] = _missile_info(c, evs, aim_pt, now)
         return {
             "count": len(out), "clusters": out,
@@ -580,9 +580,25 @@ def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
                  ref: tuple[float, float] | None = None,
                  now: datetime | None = None,
                  max_age_min: float | None = None,
-                 coarse_places: set[str] | None = None) -> dict:
-    """``evs`` is this cluster's events, newest first."""
+                 coarse_places: set[str] | None = None,
+                 since: datetime | None = None) -> dict:
+    """``evs`` is this cluster's events, newest first. ``since``: the map's
+    period - a drone track shows only its fixes and posts from then on (a
+    longer period shows more of it). Missiles keep their whole story: the
+    launch report usually comes before a short period, and the threat stays
+    up for its hold time whatever the period."""
     now = now or datetime.now(timezone.utc)
+    fam = FAMILY.get(c["threat_type"], "unknown")
+
+    def in_period(e) -> bool:
+        if since is None or fam in ("ballistic", "cruise"):
+            return True
+        try:
+            return dtp.isoparse(e["posted_at"]) >= since
+        except (TypeError, ValueError):
+            return True
+
+    shown = [e for e in evs if in_period(e)] or evs[:1]
     last = c["last_posted_at"]
     age_min = None
     try:
@@ -598,6 +614,8 @@ def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
     track_src: list[dict] = []
     # only fixes it could have flown between (predict.plausible_path)
     for e in flyable(evs, c["threat_type"], speed_kmh or SPEED_KMH):
+        if not in_period(e):
+            continue
         pt = [round(e["lat"], 4), round(e["lon"], 4)]
         if not track or track[-1] != pt:
             track.append(pt)
@@ -653,8 +671,8 @@ def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
         "count": c["count"],
         "count_max": c["count_max"],
         "altitude_m": c["altitude_m"],
-        "event_count": c["event_count"],
-        "channels": _json(c["channels"]),
+        "event_count": len(shown),
+        "channels": sorted({e["channel"] for e in shown}) or _json(c["channels"]),
         "sources": [
             {
                 "channel": e["channel"], "url": e["url"],
@@ -662,7 +680,7 @@ def _cluster_dto(c, evs, *, speed_kmh: dict[str, float] | None = None,
                 "count": e["count"], "status": e["status"],
                 "confidence": e["parse_confidence"],
             }
-            for e in evs[:8]
+            for e in shown[:8]
         ],
     }
 

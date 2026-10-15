@@ -93,9 +93,8 @@ class Deduper:
             d = 0.0
             if ev.lat is not None and c["centroid_lat"] is not None:
                 d = haversine_km((ev.lat, ev.lon), (c["centroid_lat"], c["centroid_lon"]))
-                speed = max(self.cfg.speed_kmh.get(ev.threat_type, 220.0),
-                            self.cfg.speed_kmh.get(c["threat_type"], 220.0))
-                if d > max(REPLY_FLOOR_KM, speed * gap_s / 3600.0 * self.cfg.speed_slack):
+                speed = max(self._reach_kmh(ev.threat_type), self._reach_kmh(c["threat_type"]))
+                if d > max(REPLY_FLOOR_KM, speed * gap_s / 3600.0):
                     continue
             if best_follow is None or d < best_follow[0]:
                 best_follow = (d, cid)

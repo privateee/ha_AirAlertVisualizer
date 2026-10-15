@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from dronevis.predict import plausible_path, threat_life
 
 T0 = datetime(2026, 10, 15, 22, 0, tzinfo=timezone.utc)
-SHAHED = 185 * 1.25               # reach_kmh("shahed")
+SHAHED = 300.0                    # reach_kmh("shahed")
 
 TROIESHCHYNA = (50.51, 30.60)
 BROVARY = (50.51, 30.79)          # ~13 km east
@@ -24,7 +24,7 @@ def test_steady_flight_keeps_every_fix():
 
 def test_a_jump_there_and_back_is_dropped():
     # another channel's Boryspil one minute after Brovary, then Brovary again
-    pts = _pts((0, TROIESHCHYNA), (5, BROVARY), (6, BORYSPIL), (8, BROVARY))
+    pts = _pts((0, TROIESHCHYNA), (5, BROVARY), (6, BORYSPIL), (7, BROVARY))
     assert 2 not in plausible_path(pts, SHAHED)
 
 

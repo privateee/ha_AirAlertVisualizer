@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.12
+
+The map's period shows only that period of a drone track (missiles keep
+their whole story). Drone top speeds: 300 km/h, jet UAVs 900.
+
 ## 1.1.11
 
 One drone circling the city is one track, not a ring per district: bare

@@ -2,6 +2,19 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.12 — 2026-10-15
+
+- **The period shows only that period of a drone track.** "5 min" used to
+  pick the tracks active in the last 5 minutes and then draw each one's
+  whole history (posts from 20 minutes before in the popup). A drone track
+  now shows only its fixes, posts, post count and channels from the period;
+  a longer period shows more of it. Course and speed still use the whole
+  track. Cruise / ballistic missiles keep their whole story and their hold
+  time, whatever the period.
+- **Drone top speeds.** Shahed, recon and untyped sightings up to 300 km/h,
+  jet UAVs up to 900 - what decides whether two reports can be one object
+  (merging, the drawn path, reply-follow). ETAs still use cruise speed.
+
 ## 1.1.11 — 2026-10-15
 
 - **One drone over the city is one track.** A bare position from a terse
