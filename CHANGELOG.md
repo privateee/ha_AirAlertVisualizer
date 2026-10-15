@@ -2,6 +2,16 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.9 — 2026-10-15
+
+- **A bare "водосховище" is the nearby reservoir.** It was always the Kyiv
+  reservoir; now it is the one nearest the places on the same line (else in
+  the post, else the viewer's area), within 100 km - or no position at all.
+  Added the Kremenchuk, Kamianske, Pechenihy, Oskil and Dnister reservoirs.
+- **District alert levels aren't sightings.** "Вишгородський район жовта
+  тривога (дронова небезпека)!" (and orange / red) no longer becomes a
+  Shahed over the district's town.
+
 ## 1.1.8 — 2026-10-15
 
 - **New channels parsed properly.** eradarrua is read as terse (a bare

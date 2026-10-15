@@ -44,6 +44,8 @@ _SUMMARY_RX = re.compile(
     # повітряна тривога, жовтий рівень: Дронова загроза" - an alert level,
     # not a sighting (it became a drone on the district's town)
     r"|\bрайон\w*\s+повитрян\w*\s+тривог|\bжовт\w*\s+ривен"
+    # "Вишгородський район жовта тривога (дронова небезпека)!" (kyiv_golovne)
+    r"|\b(?:жовт|помаранчев|червон)\w*\s+тривог"
     # "ППО збили/подавили 119 повітряних цілей" - the night's tally
     r"|\d{2,}\s+повитрян\w*\s+цил"
     r"|\bдовидков|\bинфографик|\bстатистик",
@@ -123,6 +125,12 @@ _TRACK_LINE_RX = re.compile(r"бпла|реактив|шахед|мопед|ку
 # not under its short tracking ones ("🔴 Київ Головне"). kievreal1 signs both
 # alike ("Надіслати новину @bot"), so this is per channel.
 NEWS_SIGNATURE = {"kyiv_golovne": "київ головне"}
+
+# A bare "водосховище" ("на Дніпровське / водосховище") is whichever reservoir
+# the rest of the post is near - there are several on the Dnipro alone. With
+# no named place within this distance it says nothing about where.
+_BARE_WATER_RX = re.compile(r"(?<![\w'])(?:водосховищ|водохранилищ)\w*")
+BARE_WATER_KM = 100.0           # a reservoir is ~100 km long; this is its centre
 
 
 def is_news(text: str, folded: str) -> bool:
@@ -222,6 +230,26 @@ class Parser:
             from .llm import LLMExtractor  # lazy: keep base install light
 
             self._llm = LLMExtractor(cfg, self.gaz)
+        self._waters = [pl for pl in self.gaz.places if pl.kind == "water"]
+
+    def _bare_water(self, fline: str, hits: list[PlaceHit],
+                    post_anchors: list[tuple[float, float]]) -> list[PlaceHit]:
+        """Add a hit for each bare "водосховище" on the line: the reservoir
+        nearest this line's places (else the post's, else the viewer's area),
+        if one is close."""
+        anchors = ([h.place.coord for h in hits if h.place.kind not in ("oblast", "water")]
+                   or post_anchors)
+        if not anchors:
+            return hits
+        for m in _BARE_WATER_RX.finditer(fline):
+            if any(h.start <= m.start() < h.end for h in hits):
+                continue                       # "Київське водосховище" - named
+            km, water = min(((min(haversine_km(w.coord, a) for a in anchors), w)
+                             for w in self._waters), key=lambda kw: kw[0])
+            if km <= BARE_WATER_KM:
+                hits = sorted([*hits, PlaceHit(water, m.start(), m.end(), m.group(0))],
+                              key=lambda h: h.start)
+        return hits
 
     # -- public -----------------------------------------------------------
     def parse(
@@ -290,6 +318,7 @@ class Parser:
 
         events: list[ParsedEvent] = []
         lines = split_lines(display)
+        post_anchors: list[tuple[float, float]] | None = None   # for _bare_water
         for li, line in enumerate(lines):
             fline = fold(line)
             hits = self.gaz.find(fline, oblast_hint=oblast_hint,
@@ -298,6 +327,13 @@ class Parser:
                 # "Ьориспіль", "Святощин": one key off a known name - but not a
                 # region word ("на Київщину" read as a misspelt "Києву")
                 hits = self.gaz.typo_hits(line, fline, area_center=area_center)
+            if _BARE_WATER_RX.search(fline):
+                if post_anchors is None:
+                    post_anchors = [h.place.coord for h in self.gaz.find(
+                        folded_full, oblast_hint=oblast_hint, area_center=area_center)
+                        if h.place.kind not in ("oblast", "water")]
+                hits = self._bare_water(fline, hits, post_anchors
+                                        or ([area_center] if area_center else []))
 
             tm = classify_line(fline)
 

@@ -94,3 +94,25 @@ def test_gone_reply_ends_the_quoted_drone(tmp_path, monkeypatch, reply, ends):
         assert (open_ == 0) is ends
     finally:
         asyncio.run(svc.aclose())
+
+
+def test_district_alert_colour_is_not_a_sighting(parser):
+    text = "Вишгородський район жовта тривога (дронова небезпека)!"
+    assert parser.parse(text, channel="kyiv_golovne") == []
+
+
+# -- a bare "водосховище" is the reservoir near the rest of the post --------
+@pytest.mark.parametrize("text, want", [
+    ("Реактивний на Дніпровське / водосховище", "Київське водосховище"),
+    ("Шахед повз Світловодськ на водосховище", "Кременчуцьке водосховище"),
+])
+def test_bare_reservoir_is_the_nearby_one(parser, text, want):
+    ev = parser.parse(text, channel="horizon_of_war_official")[0]
+    assert want in (ev.place_name, ev.dest_name)
+
+
+def test_bare_reservoir_with_nothing_near_is_nowhere(parser):
+    evs = parser.parse("Шахед над водосховищем", channel="kpszsu")
+    assert all(e.place_name is None or "водосховище" not in e.place_name for e in evs)
+    evs = parser.parse("Шахед над водосховищем", channel="kpszsu", area_center=(50.45, 30.52))
+    assert evs[0].place_name == "Київське водосховище"

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.9
+
+A bare "водосховище" is the reservoir near the rest of the post, not always
+the Kyiv one; district "жовта тривога" posts are no longer drones.
+
 ## 1.1.8
 
 New channels (eradarrua, kyiv_golovne, horizon_of_war_official) parsed
