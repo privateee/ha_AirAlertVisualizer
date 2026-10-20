@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.14
+
+Better "same drone or a new one": a bare next position continues the track
+that could have reached it; two tracks of one drone are joined (not two that
+were ever in two places at once). Per-line regions, fewer false place
+matches, talk and status lines aren't sightings.
+
 ## 1.1.13
 
 Stale destinations are dropped once the drone flies away from them; "друга /

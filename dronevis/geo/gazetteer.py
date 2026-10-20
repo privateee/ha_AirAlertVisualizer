@@ -34,6 +34,10 @@ _SUFFIX = r"[а-яёʼ'\-]{0,3}(?![а-яёa-z])"
 # than anyone ever reports the villages themselves.
 _WORD_NAMES = {"Нове", "Сад"}
 
+# Everyday words that sit one slip away from a place ("Трохи знизився" was
+# Троя / Троєщина). Lower-case, as written.
+_NOT_TYPOS = {"трохи", "тихо", "також", "тепер", "знову", "далі", "ближче"}
+
 # Everyday nouns that look like a declined place name. Folded forms.
 _COMMON_NOUNS = {"острив", "острова", "острови", "островах", "остров", "островами",
                  "острову"}
@@ -426,13 +430,18 @@ class Gazetteer:
         typo that folding would erase). Only accepted when every plausible
         reading points to the same place, near the area when one is given."""
         word = word.lower()
-        if len(word) < 5 or _ADJ_END_RE.search(word):
+        if len(word) < 5 or _ADJ_END_RE.search(word) or word in _NOT_TYPOS:
             return None
         found: dict[str, Place] = {}
         for v in _typo_variants(word):
             fv = fold(v)
             m = self._scan_re.match(fv)
             if not m or m.end() != len(fv):
+                continue
+            # a slip *and* a case ending is too much freedom: "Маневри" was
+            # "мене"+"ври" (Мена), "Бучмани" "буча"+"ни". Real slips
+            # ("Святощин", "Ьориспіль") keep at most one ending letter.
+            if len(fv) - m.end(1) > 1:
                 continue
             cands = self._by_key.get(fold(m.group(1)))
             if not cands:

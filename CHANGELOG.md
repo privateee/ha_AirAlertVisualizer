@@ -2,6 +2,31 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.14 — 2026-10-20
+
+Tuned on a replayed day (2026-10-19/20, 1487 posts, 8 channels): tracks
+588 -> 552; one drone split over several tracks, across channels 36% -> 19%,
+within a channel 25% -> 14%.
+
+- **New drone or the known one moving on.** A bare next position continues
+  the one open track that could have reached it (within 30 km; several ->
+  the one whose position carried on along its course is nearest). Two tracks
+  that a report fits equally well (two channels started the same drone) are
+  joined - unless they were ever in two places at once (confirmed sightings,
+  allowing 3 min for one channel posting later than another). A course is no
+  longer derived from an oblast-level fix.
+- **Each line uses its own region** ("на півдні Миколаївщини" was put in
+  Chernihiv oblast); "🛵 Житомирщина" is a heading for the lines below it
+  (region and type).
+- **Fewer false places:** a typo match allows at most one ending letter
+  ("Маневри" was Мена, "Трохи" Троєщина, "Бучмани" Буча); 14 villages added;
+  Рембаза moved to the east bank.
+- **Talk and status aren't sightings** in terse channels (sentences over 7
+  words, "дорозвідка", "м.Київ - повітряна тривога!"); "буде відбій" /
+  "пішла на Житомирщину" clear the city; a news / terse channel's first line
+  is a report, not a heading for the next ones; "ще 1", "наступний", "нова
+  партія" mean another drone.
+
 ## 1.1.13 — 2026-10-15
 
 - **A stale destination is dropped.** "Від Вишеньок на Гнідин", then the

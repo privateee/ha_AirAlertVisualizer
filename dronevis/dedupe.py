@@ -23,7 +23,7 @@ from rapidfuzz import fuzz
 from .config import Config
 from .db import Database
 from .geo.launch import site_at
-from .geo.util import bearing_deg, haversine_km
+from .geo.util import bearing_deg, dest_point, haversine_km
 from .parse.pipeline import ParsedEvent
 from .parse.threats import FAMILY, MAX_SPEED_KMH
 from .predict import FIX_FLOOR_KM
@@ -33,6 +33,11 @@ MISSILE_UPDATE_S = 15 * 60       # a channel's follow-up on its missile, within 
 DIRECTION_CONFLICT_DEG = 90.0    # stated headings further apart: different drones
 REPLY_FLOOR_KM = 30.0            # a reply's place may be this far off whatever the gap
 STALE_DEST_KM = 3.0              # this much further from its target: it gave up on it
+MOVED_MAX_KM = 30.0              # a nameless next fix continues a track only this close
+FUSE_SCORE = 0.85                # a report this good a fit for two tracks joins them
+FUSE_KM = 10.0                   # ... when their latest fixes are this close
+COEXIST_MIN = 5.0                # fixes this close in time, too far apart: two drones
+CHANNEL_LAG_MIN = 3.0            # channels post the same moment up to this far apart
 
 
 def _dt(iso: str) -> datetime:
@@ -45,6 +50,21 @@ def _same_kind(a: str, b: str) -> bool:
     continue a drone track - it used to start a track of its own every time,
     leaving a ring per district for one drone circling the city."""
     return a == b or {a, b} == {"drone", "unknown"}
+
+
+def _lag_h(a: str, b: str) -> float:
+    """Allowance, in hours, for two channels posting the same moment at
+    different delays (kpszsu's "через Бориспіль" came 26 s after eradarrua's
+    "Рембаза", 23 km on - one drone, reported minutes apart in real time)."""
+    return 0.0 if a == b else CHANNEL_LAG_MIN / 60.0
+
+
+def _coarse(place: str | None) -> bool:
+    """A region-level / approach-side / whole-city fix: no precise position."""
+    return not place or place.endswith("обл.") or "(з" in place or place in _BIG_CITIES
+
+
+_BIG_CITIES = {"Київ", "Харків", "Одеса", "Дніпро", "Львів", "Запоріжжя"}
 
 
 def _angdiff(a: float, b: float) -> float:
@@ -115,6 +135,8 @@ class Deduper:
 
         best_id: int | None = None
         best_score = 0.0
+        scores: dict[int, float] = {}            # every drone track this report fits
+        live: list = []                           # open tracks it may continue
         for c in self.db.open_clusters(since):
             if c["resolved_at"] is not None:
                 continue
@@ -131,16 +153,144 @@ class Deduper:
                 if score > best_score:
                     best_score, best_id = score, c["id"]
                 continue
+            live.append(c)
             score = self._score(ev, c, family, channel, gap / 60.0)
             if score > 0:
                 score = self._same_channel_adjust(score, c, ev, event_id, raw_id, channel, now)
+                scores[c["id"]] = score
             if score > best_score:
                 best_score, best_id = score, c["id"]
 
         if best_id is not None and best_score >= 0.5:
             self._attach(best_id, event_id, ev, channel, posted_at)
-            return best_id
+            return self._fuse(best_id, scores)
+        # no track matched by name / trajectory - but if exactly the tracks
+        # that could physically have got here are few, it's one of them moving
+        # on, not a new drone (a bare "Рембаза" a minute after "через
+        # Бориспіль", 21 km on: a new track used to start and run parallel)
+        moved = self._reachable_track(ev, live, now, event_id, raw_id, channel)
+        if moved is not None:
+            self._attach(moved, event_id, ev, channel, posted_at)
+            return moved
         return self._create(event_id, ev, channel, posted_at)
+
+    # -- identity: moved on, or one drone on two tracks -----------------------
+    def _reachable_track(self, ev: ParsedEvent, live: list, now: datetime,
+                         event_id: int, raw_id: int | None, channel: str) -> int | None:
+        """The open drone track this fix is a plausible next position of, when
+        name / course matching found none: in reach at the faster type's top
+        speed, close (city scale), not flying the other way, same group size.
+        Several -> the one whose *predicted* position (last fix carried on along
+        its course) is nearest: two drones crossing the city each keep theirs."""
+        if ev.lat is None or FAMILY.get(ev.threat_type, "unknown") not in ("drone", "unknown"):
+            return None
+        best = None
+        for c in live:
+            if c["centroid_lat"] is None or self._count_conflict(ev.count, c["count"]):
+                continue
+            here = (c["centroid_lat"], c["centroid_lon"])
+            d = haversine_km((ev.lat, ev.lon), here)
+            if d > MOVED_MAX_KM:
+                continue
+            gap_h = max(0.0, (now - _dt(c["last_posted_at"])).total_seconds() / 3600.0)
+            speed = max(self._reach_kmh(ev.threat_type), self._reach_kmh(c["threat_type"]))
+            if d > FIX_FLOOR_KM + speed * gap_h:
+                continue
+            # a channel's own fixes are one observer: another place in the same
+            # post, or out of reach of its own last fix, is a second drone
+            if self._same_channel_adjust(1.0, c, ev, event_id, raw_id, channel, now) == 0.0:
+                continue
+            if (ev.heading_deg is not None and c["heading_deg"] is not None and d > 5.0
+                    and _angdiff(ev.heading_deg, c["heading_deg"]) > DIRECTION_CONFLICT_DEG):
+                continue
+            d_pred = d
+            if c["heading_deg"] is not None and c["status"] not in ("circling",):
+                cruise = self.cfg.speed_kmh.get(c["threat_type"], 200.0)
+                ahead = dest_point(here[0], here[1], c["heading_deg"],
+                                   min(cruise * gap_h, MOVED_MAX_KM))
+                d_pred = min(d, haversine_km((ev.lat, ev.lon), ahead))
+            if best is None or d_pred < best[0]:
+                best = (d_pred, c["id"])
+        return best[1] if best else None
+
+    def _fuse(self, cid: int, scores: dict[int, float]) -> int:
+        """A report that fits two open tracks equally well ("Оболонь" at 0.98
+        for kpszsu's track *and* eradarrua's) shows they are one drone that
+        two channels started separately - each then kept extending its own,
+        side by side, for the whole raid. Join them into the older track.
+        Returns the track the report is on now."""
+        if scores.get(cid, 0.0) < FUSE_SCORE:
+            return cid
+        for other, sc in sorted(scores.items(), key=lambda kv: -kv[1]):
+            if other == cid or sc < FUSE_SCORE:
+                continue
+            a = self.db.query_one("SELECT * FROM cluster WHERE id=?", (cid,))
+            b = self.db.query_one("SELECT * FROM cluster WHERE id=?", (other,))
+            if a is None or b is None or b["resolved_at"] is not None:
+                continue
+            if self._count_conflict(a["count"], b["count"]):
+                continue                      # "2" and "1": two groups
+            if None in (a["centroid_lat"], b["centroid_lat"]) or haversine_km(
+                    (a["centroid_lat"], a["centroid_lon"]),
+                    (b["centroid_lat"], b["centroid_lon"])) > FUSE_KM:
+                continue
+            if self._coexisted(a, b):
+                continue
+            keep, drop = (a, b) if a["first_posted_at"] <= b["first_posted_at"] else (b, a)
+            self._merge(keep, drop)
+            cid = keep["id"]
+        return cid
+
+    def _coexisted(self, a, b) -> bool:
+        """Were tracks ``a`` and ``b`` ever in two places at once - fixes a few
+        minutes apart, further apart than one object could fly? Then they are
+        two drones that just met (horizon's jet down the reservoir and the one
+        circling Буча, both near Жуляни at 12:33) - joining them wove two
+        histories into one impossible path."""
+        speed = max(self._reach_kmh(a["threat_type"]), self._reach_kmh(b["threat_type"]))
+        # only confirmed sightings: an oblast / whole-city / "(з півночі)"
+        # point, or a target the post merely names ("в напрямку Ржищева",
+        # placed there at 0.6), is "somewhere around" - far from everything
+        sql = ("SELECT lat, lon, posted_at, place_name, channel FROM event "
+               "WHERE cluster_id=? AND lat IS NOT NULL AND geo_confidence >= 0.7")
+        fa = [r for r in self.db.query(sql, (a["id"],)) if not _coarse(r["place_name"])]
+        fb = [r for r in self.db.query(sql, (b["id"],)) if not _coarse(r["place_name"])]
+        for x in fa:
+            tx = _dt(x["posted_at"])
+            for y in fb:
+                gap_h = abs((tx - _dt(y["posted_at"])).total_seconds()) / 3600.0
+                if gap_h * 60.0 > COEXIST_MIN:
+                    continue
+                d = haversine_km((x["lat"], x["lon"]), (y["lat"], y["lon"]))
+                if d > FIX_FLOOR_KM + speed * (gap_h + _lag_h(x["channel"], y["channel"])):
+                    return True
+        return False
+
+    def _merge(self, keep, drop) -> None:
+        """Move ``drop``'s reports onto ``keep`` and delete ``drop``."""
+        self.db.execute("UPDATE event SET cluster_id=? WHERE cluster_id=?",
+                        (keep["id"], drop["id"]))
+        chans = sorted(set(json.loads(keep["channels"])) | set(json.loads(drop["channels"])))
+        patch: dict = {
+            "first_posted_at": min(keep["first_posted_at"], drop["first_posted_at"]),
+            "last_posted_at": max(keep["last_posted_at"], drop["last_posted_at"]),
+            "event_count": int(keep["event_count"]) + int(drop["event_count"]),
+            "channels": json.dumps(chans, ensure_ascii=False),
+        }
+        cmax = max((x for x in (keep["count_max"], drop["count_max"]) if x is not None),
+                   default=None)
+        if cmax is not None:
+            patch["count_max"] = cmax
+        if keep["threat_type"] == "unknown" and drop["threat_type"] != "unknown":
+            patch["threat_type"] = drop["threat_type"]
+        if drop["last_posted_at"] > keep["last_posted_at"]:
+            # the dropped track holds the latest fix: that's where it is now
+            for k in ("status", "count", "altitude_m", "place_name", "centroid_lat",
+                      "centroid_lon", "heading_deg", "dest_name", "dest_lat", "dest_lon"):
+                if drop[k] is not None or k in ("dest_name", "dest_lat", "dest_lon"):
+                    patch[k] = drop[k]
+        self.db.update_cluster(keep["id"], patch)
+        self.db.execute("DELETE FROM cluster WHERE id=?", (drop["id"],))
 
     def _resolve_nearby(self, ev: ParsedEvent, posted_at: str) -> int:
         """An 'all clear' at a place marks open clusters there as resolved."""
@@ -455,7 +605,9 @@ class Deduper:
             if ev.lat is not None:
                 patch["centroid_lat"] = ev.lat
                 patch["centroid_lon"] = ev.lon
-                if None not in old_pos and haversine_km(old_pos, (ev.lat, ev.lon)) >= 3:
+                coarse_old = bool(c["place_name"]) and _coarse(c["place_name"])
+                if (None not in old_pos and not coarse_old
+                        and haversine_km(old_pos, (ev.lat, ev.lon)) >= 3):
                     patch["heading_deg"] = bearing_deg(old_pos, (ev.lat, ev.lon))
                 elif ev.heading_deg is not None:
                     patch["heading_deg"] = ev.heading_deg

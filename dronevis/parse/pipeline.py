@@ -39,7 +39,7 @@ _SUMMARY_RX = re.compile(
     r"|\bпидсумк|\bподсчет|\bпидрахун"
     r"|\b(усього|всього|загалом)\s+(збит|знищен|сбит|уничтожен|випуст|запуст)"
     r"|\b(збит|знищен|сбит|уничтожен)\w*\s+\d{2,}"
-    r"|\bповитрян\w*\s+тривог\w*\s*$"
+    r"|\bповитрян\w*\s+тривог\w*[\s!.]*$"           # "м.Київ - повітряна тривога!"
     r"|\bвидбий\s+(?:повитрян\w*\s+)?тривог"
     # siren status per district (horizon_of_war): "🟡 Ніжинський район —
     # повітряна тривога, жовтий рівень: Дронова загроза" - an alert level,
@@ -133,10 +133,25 @@ NEWS_SIGNATURE = {"kyiv_golovne": "київ головне"}
 # "це друга Герань", "інший на Боярку", "ще одна Герань-5 на Козин" - a
 # second object, not the one the channel was following (folded text)
 _ANOTHER_RX = re.compile(
-    r"\b(?:инш(?:ий|а|е|ого|ои)|друг(?:а|ий|е|ою|ои)|ще\s+од(?:ин|на|не|ну))\b")
+    r"\b(?:инш(?:ий|а|е|ого|ои)|друг(?:а|ий|е|ою|ои)|ще\s+од(?:ин|на|не|ну)|ще\s+\d+"
+    r"|наступн\w*|нов\w*\s+парти\w*)\b")
 # "Жуляни далі ви, інший на Боярку": the part after the comma is the other
 # one - its own line, so Боярка isn't Жуляни's destination (display text)
-_ANOTHER_SPLIT = re.compile(r",\s*(?=(?:[іи]нш|друг|ще\s+од)\w*\b)", re.I)
+_ANOTHER_SPLIT = re.compile(r",\s*(?=(?:[іи]нш|друг|ще\s+од|ще\s+\d)\w*\b)", re.I)
+
+_WORD_RX = re.compile(r"[а-яa-z'ʼ]+")
+# a terse channel's bare place line is a sighting; a sentence that merely
+# names a place is talk ("Київ так само атакують, використовуючи одні і ті ж
+# коридори (маршрути). Місяцями.")
+TERSE_MAX_WORDS = 7
+# "Тимчасово дорозвідка у столиці" - post-attack sweep before the all clear,
+# not a sighting (folded)
+_SKIP_LINE_RX = re.compile(r"\bдорозвидк")
+# it has left the city: "Полетів на Житомирщину, буде відбій у столиці",
+# "Герань-5 пролетіла над Києвом та пішла на Житомирщину" - the city's
+# track is done, not a new drone over its centre (folded)
+_CITY_LEFT_RX = re.compile(
+    r"\bбуде\s+видбий|\b(?:пишл[аи]|пишов|полетив|полетил[аи])\s+(?:на|в|у)\s+\w+щин")
 
 _BARE_WATER_RX = re.compile(r"(?<![\w'])(?:водосховищ|водохранилищ)\w*")
 BARE_WATER_KM = 100.0           # a reservoir is ~100 km long; this is its centre
@@ -308,8 +323,12 @@ class Parser:
         header_place: PlaceHit | None = None
         display = normalize(text, keep_case=True)
         first_line = display.split("\n", 1)[0]
+        # News / terse channels post a run of one-place reports ("1 Хотянівка
+        # ⏎ 1 Переяслав", "На Пущу-Водицю йде ⏎ Ще 1 на Ржищів"): their first
+        # line is a report, not a heading - only "Бровари:" is one there.
         if first_line.endswith(":") or (
-                len(first_line) <= 40 and classify_line(fold(first_line)) is None):
+                not terse and len(first_line) <= 40
+                and classify_line(fold(first_line)) is None):
             hh = self.gaz.find(fold(first_line), oblast_hint=oblast_hint,
                                area_center=area_center)
             header_place = next((h for h in hh if h.place.kind != "oblast"), None)
@@ -332,9 +351,17 @@ class Parser:
         events: list[ParsedEvent] = []
         lines = [piece for ln in split_lines(display) for piece in _ANOTHER_SPLIT.split(ln)]
         post_anchors: list[tuple[float, float]] | None = None   # for _bare_water
+        # "🛵 Житомирщина" over "- 3 повз Олевськ на Рівненщину": a section
+        # heading - its region (and threat type) is for the lines below it
+        section_region = section_obl = section_type = None
         for li, line in enumerate(lines):
             fline = fold(line)
-            hits = self.gaz.find(fline, oblast_hint=oblast_hint,
+            # this line's own region word wins over the post's first one: in
+            # "…Чернігівщини… ⏎ …на півдні Миколаївщини" the 2nd line was put
+            # in Chernihiv oblast
+            line_obl = self.gaz.detect_oblast(fline)
+            hint = line_obl or section_obl or oblast_hint
+            hits = self.gaz.find(fline, oblast_hint=hint,
                                  area_center=area_center)
             if not hits and not self.gaz.region_hit(fline):
                 # "Ьориспіль", "Святощин": one key off a known name - but not a
@@ -349,6 +376,28 @@ class Parser:
                                         or ([area_center] if area_center else []))
 
             tm = classify_line(fline)
+            if _SKIP_LINE_RX.search(fline):
+                continue
+            if _CITY_LEFT_RX.search(fline):
+                left = next((h for h in hits if h.place.kind != "oblast"), None)
+                if left is not None:
+                    events.append(ParsedEvent(
+                        threat_type="clear", threat_raw=None, count=None,
+                        status="clear", place_name=left.place.name,
+                        lat=left.place.lat, lon=left.place.lon, geo_confidence=0.8,
+                        raw_line=strip_hints(line)[:400], parse_method="rules",
+                        parse_confidence=0.7,
+                    ))
+                continue
+
+            own_rh = self.gaz.region_hit(fline) if line_obl else None
+            own_region = (own_rh[0], own_rh[1][0], own_rh[1][1]) if own_rh else None
+            if (len(lines) > 1 and own_region is not None and extract_count(line) is None
+                    and not any(h.place.kind != "oblast" for h in hits)
+                    and len(_WORD_RX.findall(fline)) <= 2):
+                section_region, section_obl = own_region, line_obl
+                section_type = tm.slug if tm is not None and tm.slug != "unknown" else None
+                continue
 
             # a *pure* "all clear" for a place (no threat words on the line)
             # -> a marker the deduper uses to resolve matching open clusters
@@ -377,12 +426,13 @@ class Parser:
                     h.place.kind == "oblast" or (h.place.kind == "city" and h.place.rank >= 5)
                     for h in hits)
                 if (terse and hits and not header_only and not coarse_only
-                        and (not news or len(line) <= 45)):
+                        and (not news or len(line) <= 45)
+                        and len(_WORD_RX.findall(fline)) <= TERSE_MAX_WORDS):
                     tm = _UNKNOWN_MATCH
                 else:
                     continue
-            if tm.slug == "unknown" and post_default_type:
-                tm = ThreatMatch(post_default_type, tm.raw, tm.start)
+            if tm.slug == "unknown" and (section_type or post_default_type):
+                tm = ThreatMatch(section_type or post_default_type, tm.raw, tm.start)
             dr = analyze(fline, hits)
             if HINT_CIRCLE in fline and dr.status in ("moving", "unknown"):
                 dr.status = "circling"            # war_monitor's 🔄 marker
@@ -401,6 +451,9 @@ class Parser:
             # in a multi-line post a line without its own region doesn't borrow
             # one from another report line - only from a header ("Полтавщина:")
             line_region = line_origin or (region if len(lines) == 1 else header_region)
+            # the area this line is about, for a line with no place of its own
+            line_area = (own_region or section_region or header_region
+                         or (region if len(lines) == 1 else None))
 
             # everything below works with plain (name, lat, lon) triples
             pos = _triple(dr.primary)
@@ -444,11 +497,12 @@ class Parser:
                     if origin and heading is None and origin[1:] != pos[1:]:
                         heading = bearing_deg((origin[1], origin[2]), (pos[1], pos[2]))
                     geo_conf = 0.6                  # projected, not confirmed there
-                elif region is not None and not news and not (li == 0 and len(lines) > 1):
+                elif line_area is not None and not news and not (
+                        li == 0 and len(lines) > 1 and first_line.rstrip().endswith(":")):
                     # last resort: vague area centre - but never for the header
                     # line of a multi-line post ("Загальна по мопедам:"), which
                     # would become a phantom track at an oblast named below
-                    pos, geo_conf = region, 0.35
+                    pos, geo_conf = line_area, 0.35
                 elif src is not None:
                     pos, src = src, None
 
