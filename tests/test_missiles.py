@@ -143,7 +143,7 @@ def test_quiet_threat_is_a_possible_false_alarm(db, parser):
 
 
 def test_missile_threat_outlives_a_short_window(tmp_path, monkeypatch):
-    """A 5-minute map still shows a 'Загроза ОТРК, Курськ' posted 20 min ago
+    """A 5-minute map still shows a 'Загроза ОТРК, Курськ' posted 6 min ago
     (unresolved), but not after its hold time or once resolved."""
     from fastapi.testclient import TestClient
 
@@ -157,10 +157,10 @@ def test_missile_threat_outlives_a_short_window(tmp_path, monkeypatch):
     dd = Deduper(db, cfg)
     p = Parser(cfg)
     now = datetime.now(timezone.utc)
-    (cid,) = _store(db, dd, p, "AerisRimor", 1, "Курськ ОТРК!", now - timedelta(minutes=20))
-    (old,) = _store(db, dd, p, "AerisRimor", 2, "Брянськ ОТРК!", now - timedelta(minutes=60))
+    (cid,) = _store(db, dd, p, "AerisRimor", 1, "Курськ ОТРК!", now - timedelta(minutes=6))
+    (old,) = _store(db, dd, p, "AerisRimor", 2, "Брянськ ОТРК!", now - timedelta(minutes=10))
     ids = {c["id"] for c in client.get("/api/clusters?area=kyiv&since=-5m").json()["clusters"]}
-    assert cid in ids and old not in ids                  # held 45 min for ballistic
+    assert cid in ids and old not in ids                  # held 7 min for ballistic
     db.update_cluster(cid, {"resolved_at": now.isoformat()})
     ids = {c["id"] for c in client.get("/api/clusters?area=kyiv&since=-5m").json()["clusters"]}
     assert cid not in ids

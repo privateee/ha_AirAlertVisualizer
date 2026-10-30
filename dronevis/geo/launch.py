@@ -45,7 +45,9 @@ LAUNCH_SITES: tuple[LaunchSite, ...] = (
 
 # missile threats stay on the map (and keep polling fast) this long after
 # their last report, whatever the time window, unless resolved or they hit
-THREAT_HOLD_MIN = {"ballistic": 45, "cruise": 90}
+# - shorter than a drone: a ballistic missile is launch-to-hit in ~5 min,
+# a cruise missile is 250 km on 20 min after its last report
+THREAT_HOLD_MIN = {"ballistic": 7, "cruise": 20}
 
 # average speed over the whole flight: an Iskander covers ~400 km in 4-5
 # minutes; a Zircon is in the same class

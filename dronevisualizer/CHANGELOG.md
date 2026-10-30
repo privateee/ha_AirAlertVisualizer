@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.15
+
+Missiles leave the map sooner than drones: ballistic 7 min, cruise / guided
+20 min (were 45 and 90); drones stay at 25.
+
 ## 1.1.14
 
 Better "same drone or a new one": a bare next position continues the track

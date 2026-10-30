@@ -317,8 +317,8 @@ def assess(m: Motion, ref: tuple[float, float], now: datetime,
 # place. Minutes without a report after which a track is gone, per family:
 LIFE_MIN = {
     "drone": 25.0,       # Shahed ~170 km/h: 70 km off its last fix by then
-    "cruise": 90.0,      # matches the launch-area hold (geo/launch.py)
-    "ballistic": 45.0,
+    "cruise": 20.0,      # matches the launch-area hold (geo/launch.py)
+    "ballistic": 7.0,    # launch to hit in ~5 min, plus posting lag
     "bomb": 15.0,        # a KAB glides for minutes, not hours
     "aircraft": 60.0,
     "unknown": 25.0,     # an untyped sighting is in practice a drone

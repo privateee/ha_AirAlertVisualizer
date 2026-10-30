@@ -2,6 +2,13 @@
 
 All notable changes to DroneVisualizer. Dates are UTC.
 
+## 1.1.15 — 2026-10-30
+
+- **Missiles leave the map sooner than drones.** A ballistic threat lives
+  7 min (launch to hit is ~5), a cruise / guided missile 20 min (it's 250 km
+  on by then) - was 45 and 90. Drones stay at 25 min. The same values hold a
+  missile past a short period filter and keep the fast polling.
+
 ## 1.1.14 — 2026-10-20
 
 Tuned on a replayed day (2026-10-19/20, 1487 posts, 8 channels): tracks
